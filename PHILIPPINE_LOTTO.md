@@ -24,3 +24,5 @@ The existing AccessManager/Supabase protection and Japan lottery modules are pre
 Note: PCSO's results page is a server-rendered form, so the result parser is intentionally tolerant of changes to the page markup.
 
 Packaging workflow initialized.
+
+Package workflow path fixed.
