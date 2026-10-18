@@ -14,9 +14,9 @@ jobs:
       - name: Remove git metadata
         run: rm -rf .git
       - name: Create project ZIP
-        run: zip -r ../Loto-Generator-Philippine-Lotto.zip . -x "*.DS_Store"
+        run: zip -r Loto-Generator-Philippine-Lotto.zip . -x "*.DS_Store"
       - name: Upload project ZIP
         uses: actions/upload-artifact@v4
         with:
           name: Loto-Generator-Philippine-Lotto
-          path: ../Loto-Generator-Philippine-Lotto.zip
+          path: Loto-Generator-Philippine-Lotto.zip
