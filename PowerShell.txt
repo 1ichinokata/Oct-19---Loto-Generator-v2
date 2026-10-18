@@ -1,0 +1,17 @@
+$headers = @{
+    "Content-Type" = "application/json"
+    "apikey" = "sb_publishable_go_fk2r0PMvz1vcr1QJ_Iw_UjnlzdD9"
+    "Authorization" = "Bearer sb_publishable_go_fk2r0PMvz1vcr1QJ_Iw_UjnlzdD9"
+    "x-admin-secret" = "LotoAdmin-Furan"
+}
+
+$body = @{
+    action = "generate"
+    duration_days = 30
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+    -Uri "https://ghwtwpuyswthueqysvnx.supabase.co/functions/v1/admin-access-codes" `
+    -Method Post `
+    -Headers $headers `
+    -Body $body

@@ -1,0 +1,2387 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>🎟️ Loto Generator Admin</title>
+
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+
+        body {
+            margin: 0;
+            font-family:
+                Arial,
+                Helvetica,
+                sans-serif;
+
+            background: #f3f4f6;
+            color: #111827;
+        }
+
+
+        .container {
+            max-width: 1250px;
+            margin: auto;
+            padding: 25px;
+        }
+
+
+        /* =========================
+           HEADER
+           ========================= */
+
+        .header {
+            background:
+                linear-gradient(
+                    135deg,
+                    #111827,
+                    #1f2937
+                );
+
+            color: white;
+
+            padding: 25px;
+
+            border-radius: 16px;
+
+            margin-bottom: 20px;
+
+            box-shadow:
+                0 8px 25px
+                rgba(0,0,0,0.12);
+        }
+
+
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+
+
+        .header p {
+            margin: 8px 0 0;
+            opacity: 0.75;
+        }
+
+
+        /* =========================
+           LOGIN
+           ========================= */
+
+        .login-card {
+            max-width: 500px;
+
+            margin: 80px auto;
+
+            background: white;
+
+            padding: 35px;
+
+            border-radius: 18px;
+
+            box-shadow:
+                0 10px 35px
+                rgba(0,0,0,0.12);
+        }
+
+
+        .login-card h2 {
+            margin-top: 0;
+            text-align: center;
+        }
+
+
+        /* =========================
+           CARDS
+           ========================= */
+
+        .card {
+            background: white;
+
+            border-radius: 16px;
+
+            padding: 22px;
+
+            margin-bottom: 20px;
+
+            box-shadow:
+                0 5px 18px
+                rgba(0,0,0,0.07);
+        }
+
+
+        /* =========================
+           INPUTS
+           ========================= */
+
+        input,
+        select {
+
+            width: 100%;
+
+            padding: 12px 14px;
+
+            border:
+                1px solid
+                #d1d5db;
+
+            border-radius: 10px;
+
+            font-size: 15px;
+
+            outline: none;
+
+            background: white;
+        }
+
+
+        input:focus,
+        select:focus {
+
+            border-color:
+                #2563eb;
+
+            box-shadow:
+                0 0 0 3px
+                rgba(37,99,235,0.12);
+        }
+
+
+        /* =========================
+           BUTTONS
+           ========================= */
+
+        button {
+
+            border: none;
+
+            border-radius: 10px;
+
+            padding: 11px 16px;
+
+            font-size: 14px;
+
+            font-weight: bold;
+
+            cursor: pointer;
+
+            transition: 0.15s;
+        }
+
+
+        button:hover {
+            transform:
+                translateY(-1px);
+        }
+
+
+        button:disabled {
+
+            opacity: 0.5;
+
+            cursor: not-allowed;
+
+            transform: none;
+        }
+
+
+        .btn-primary {
+
+            background: #2563eb;
+
+            color: white;
+        }
+
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+
+        .btn-success {
+
+            background: #16a34a;
+
+            color: white;
+        }
+
+
+        .btn-danger {
+
+            background: #dc2626;
+
+            color: white;
+        }
+
+
+        .btn-warning {
+
+            background: #f59e0b;
+
+            color: white;
+        }
+
+
+        .btn-secondary {
+
+            background: #e5e7eb;
+
+            color: #111827;
+        }
+
+
+        /* =========================
+           DASHBOARD
+           ========================= */
+
+        .stats {
+
+            display: grid;
+
+            grid-template-columns:
+                repeat(4, 1fr);
+
+            gap: 15px;
+
+            margin-bottom: 20px;
+        }
+
+
+        .stat {
+
+            background: white;
+
+            padding: 20px;
+
+            border-radius: 15px;
+
+            box-shadow:
+                0 5px 18px
+                rgba(0,0,0,0.06);
+        }
+
+
+        .stat-title {
+
+            font-size: 13px;
+
+            color: #6b7280;
+
+            margin-bottom: 8px;
+        }
+
+
+        .stat-value {
+
+            font-size: 30px;
+
+            font-weight: bold;
+        }
+
+
+        .stat-total
+        .stat-value {
+            color: #2563eb;
+        }
+
+
+        .stat-total .stat-value {
+            color: #2563eb;
+        }
+
+
+        .stat-active .stat-value {
+            color: #16a34a;
+        }
+
+
+        .stat-used .stat-value {
+            color: #9333ea;
+        }
+
+
+        .stat-revoked .stat-value {
+            color: #dc2626;
+        }
+
+
+        /* =========================
+           GENERATE
+           ========================= */
+
+        .generate-row {
+
+            display: grid;
+
+            grid-template-columns:
+                1fr auto;
+
+            gap: 12px;
+
+            align-items: end;
+        }
+
+
+        .field label {
+
+            display: block;
+
+            font-size: 13px;
+
+            font-weight: bold;
+
+            margin-bottom: 7px;
+
+            color: #374151;
+        }
+
+
+        /* =========================
+           TOOLBAR
+           ========================= */
+
+        .toolbar {
+
+            display: grid;
+
+            grid-template-columns:
+                1fr 180px auto;
+
+            gap: 10px;
+
+            margin-bottom: 18px;
+        }
+
+
+        /* =========================
+           TABLE
+           ========================= */
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+
+        table {
+
+            width: 100%;
+
+            border-collapse:
+                collapse;
+
+            min-width: 1000px;
+        }
+
+
+        th {
+
+            background: #f9fafb;
+
+            text-align: left;
+
+            padding: 13px;
+
+            font-size: 12px;
+
+            color: #6b7280;
+
+            text-transform:
+                uppercase;
+
+            border-bottom:
+                1px solid
+                #e5e7eb;
+        }
+
+
+        td {
+
+            padding: 13px;
+
+            border-bottom:
+                1px solid
+                #f0f0f0;
+
+            vertical-align:
+                middle;
+
+            font-size: 14px;
+        }
+
+
+        tr:hover {
+            background: #fafafa;
+        }
+
+
+        .code-cell {
+
+            font-family:
+                Consolas,
+                monospace;
+
+            font-weight: bold;
+
+            white-space:
+                nowrap;
+        }
+
+
+        .copy-btn {
+
+            margin-left: 6px;
+
+            padding: 6px 9px;
+
+            font-size: 12px;
+        }
+
+
+        /* =========================
+           BADGES
+           ========================= */
+
+        .badge {
+
+            display: inline-block;
+
+            padding: 5px 9px;
+
+            border-radius: 999px;
+
+            font-size: 12px;
+
+            font-weight: bold;
+
+            white-space:
+                nowrap;
+        }
+
+
+        .badge-active {
+
+            background:
+                #dcfce7;
+
+            color:
+                #166534;
+        }
+
+
+        .badge-revoked {
+
+            background:
+                #fee2e2;
+
+            color:
+                #991b1b;
+        }
+
+
+        .badge-unused {
+
+            background:
+                #e0e7ff;
+
+            color:
+                #3730a3;
+        }
+
+
+        .badge-used {
+
+            background:
+                #f3e8ff;
+
+            color:
+                #7e22ce;
+        }
+
+
+        .badge-permanent {
+
+            background:
+                #fef3c7;
+
+            color:
+                #92400e;
+        }
+
+
+        .badge-expiring {
+
+            background:
+                #ffedd5;
+
+            color:
+                #9a3412;
+        }
+
+
+        .badge-expired {
+
+            background:
+                #fee2e2;
+
+            color:
+                #991b1b;
+        }
+
+
+        /* =========================
+           ACTIONS
+           ========================= */
+
+        .actions {
+
+            display: flex;
+
+            gap: 7px;
+
+            flex-wrap:
+                wrap;
+        }
+
+
+        .actions button {
+
+            padding: 7px 10px;
+
+            font-size: 12px;
+        }
+
+
+        /* =========================
+           EMPTY
+           ========================= */
+
+        .empty {
+
+            text-align: center;
+
+            padding: 45px 20px;
+
+            color: #6b7280;
+        }
+
+
+        /* =========================
+           MESSAGE
+           ========================= */
+
+        .message {
+
+            margin-top: 15px;
+
+            padding: 12px 14px;
+
+            border-radius: 10px;
+
+            display: none;
+        }
+
+
+        .message.success {
+
+            display: block;
+
+            background:
+                #dcfce7;
+
+            color:
+                #166534;
+        }
+
+
+        .message.error {
+
+            display: block;
+
+            background:
+                #fee2e2;
+
+            color:
+                #991b1b;
+        }
+
+
+        /* =========================
+           TOP BAR
+           ========================= */
+
+        .topbar {
+
+            display: flex;
+
+            justify-content:
+                space-between;
+
+            align-items:
+                center;
+
+            gap: 15px;
+
+            margin-bottom: 20px;
+        }
+
+
+        .topbar-title {
+
+            font-size: 20px;
+
+            font-weight: bold;
+        }
+
+
+        .topbar-actions {
+
+            display: flex;
+
+            gap: 8px;
+        }
+
+
+        /* =========================
+           RESPONSIVE
+           ========================= */
+
+        @media (max-width: 850px) {
+
+            .stats {
+
+                grid-template-columns:
+                    repeat(2, 1fr);
+            }
+
+
+            .generate-row {
+
+                grid-template-columns:
+                    1fr;
+            }
+
+
+            .toolbar {
+
+                grid-template-columns:
+                    1fr;
+            }
+
+
+            .topbar {
+
+                align-items:
+                    flex-start;
+
+                flex-direction:
+                    column;
+            }
+        }
+
+
+        @media (max-width: 500px) {
+
+            .container {
+                padding: 12px;
+            }
+
+
+            .stats {
+
+                grid-template-columns:
+                    1fr 1fr;
+
+                gap: 10px;
+            }
+
+
+            .stat {
+                padding: 15px;
+            }
+
+
+            .stat-value {
+                font-size: 24px;
+            }
+
+
+            .header h1 {
+                font-size: 22px;
+            }
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<!-- =====================================================
+     LOGIN SCREEN
+     ===================================================== -->
+
+<div
+    id="loginScreen"
+    class="login-card"
+>
+
+    <h2>
+        🎟️ Loto Generator Admin
+    </h2>
+
+
+    <p
+        style="
+            text-align:center;
+            color:#6b7280;
+        "
+    >
+        Enter your administrator secret
+    </p>
+
+
+    <input
+        type="password"
+        id="adminSecret"
+        placeholder="Admin Secret"
+        autocomplete="off"
+    >
+
+
+    <button
+        class="btn-primary"
+        style="
+            width:100%;
+            margin-top:15px;
+        "
+        onclick="login()"
+    >
+        LOGIN
+    </button>
+
+
+    <div
+        id="loginMessage"
+        class="message"
+    ></div>
+
+</div>
+
+
+
+<!-- =====================================================
+     ADMIN SCREEN
+     ===================================================== -->
+
+<div
+    id="adminScreen"
+    style="display:none;"
+>
+
+    <div class="container">
+
+
+        <!-- HEADER -->
+
+        <div class="header">
+
+            <div
+                style="
+                    display:flex;
+                    justify-content:space-between;
+                    align-items:center;
+                    gap:15px;
+                    flex-wrap:wrap;
+                "
+            >
+
+                <div>
+
+                    <h1>
+                        🎟️ Loto Generator Admin
+                    </h1>
+
+
+                    <p>
+                        Access code management dashboard
+                    </p>
+
+                </div>
+
+
+                <button
+                    class="btn-secondary"
+                    onclick="logout()"
+                >
+                    LOGOUT
+                </button>
+
+            </div>
+
+        </div>
+
+
+
+        <!-- =================================================
+             DASHBOARD
+             ================================================= -->
+
+        <div class="stats">
+
+
+            <div class="stat stat-total">
+
+                <div class="stat-title">
+                    TOTAL CODES
+                </div>
+
+
+                <div
+                    class="stat-value"
+                    id="totalCount"
+                >
+                    0
+                </div>
+
+            </div>
+
+
+
+            <div class="stat stat-active">
+
+                <div class="stat-title">
+                    ACTIVE
+                </div>
+
+
+                <div
+                    class="stat-value"
+                    id="activeCount"
+                >
+                    0
+                </div>
+
+            </div>
+
+
+
+            <div class="stat stat-used">
+
+                <div class="stat-title">
+                    USED
+                </div>
+
+
+                <div
+                    class="stat-value"
+                    id="usedCount"
+                >
+                    0
+                </div>
+
+            </div>
+
+
+
+            <div class="stat stat-revoked">
+
+                <div class="stat-title">
+                    REVOKED
+                </div>
+
+
+                <div
+                    class="stat-value"
+                    id="revokedCount"
+                >
+                    0
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+        <!-- =================================================
+             GENERATE
+             ================================================= -->
+
+        <div class="card">
+
+            <div class="topbar">
+
+                <div class="topbar-title">
+                    🔑 Generate Access Code
+                </div>
+
+            </div>
+
+
+            <div class="generate-row">
+
+
+                <div class="field">
+
+                    <label>
+                        Access Duration
+                    </label>
+
+
+                    <select id="duration">
+
+                        <option value="30">
+                            30 Days
+                        </option>
+
+
+                        <option value="90">
+                            90 Days
+                        </option>
+
+
+                        <option value="365">
+                            365 Days
+                        </option>
+
+
+                        <option value="0">
+                            ♾️ Permanent / GOD
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <button
+                    class="btn-primary"
+                    onclick="generateCode()"
+                    id="generateButton"
+                >
+                    GENERATE CODE
+                </button>
+
+            </div>
+
+
+            <div
+                id="generateMessage"
+                class="message"
+            ></div>
+
+        </div>
+
+
+
+        <!-- =================================================
+             ACCESS CODES
+             ================================================= -->
+
+        <div class="card">
+
+
+            <div class="topbar">
+
+                <div class="topbar-title">
+                    📋 Access Codes
+                </div>
+
+
+                <div class="topbar-actions">
+
+                    <button
+                        class="btn-secondary"
+                        onclick="loadCodes()"
+                    >
+                        🔄 REFRESH
+                    </button>
+
+                </div>
+
+            </div>
+
+
+
+            <!-- SEARCH / FILTER -->
+
+            <div class="toolbar">
+
+
+                <input
+                    type="text"
+                    id="searchInput"
+                    placeholder="🔍 Search code or device ID..."
+                    oninput="renderTable()"
+                >
+
+
+                <select
+                    id="statusFilter"
+                    onchange="renderTable()"
+                >
+
+                    <option value="all">
+                        All Status
+                    </option>
+
+
+                    <option value="active">
+                        🟢 Active
+                    </option>
+
+
+                    <option value="expiring">
+                        🟠 Expiring Soon
+                    </option>
+
+
+                    <option value="expired">
+                        🔴 Expired
+                    </option>
+
+
+                    <option value="revoked">
+                        ⚫ Revoked
+                    </option>
+
+
+                    <option value="used">
+                        🟣 Used
+                    </option>
+
+
+                    <option value="unused">
+                        🔵 Unused
+                    </option>
+
+                </select>
+
+
+                <button
+                    class="btn-secondary"
+                    onclick="clearFilters()"
+                >
+                    CLEAR
+                </button>
+
+            </div>
+
+
+
+            <!-- TABLE -->
+
+            <div class="table-wrapper">
+
+                <table>
+
+                    <thead>
+
+                    <tr>
+
+                        <th>
+                            Access Code
+                        </th>
+
+
+                        <th>
+                            Duration
+                        </th>
+
+
+                        <th>
+                            Status
+                        </th>
+
+
+                        <th>
+                            Device
+                        </th>
+
+
+                        <th>
+                            Activated
+                        </th>
+
+
+                        <th>
+                            Expires
+                        </th>
+
+
+                        <th>
+                            Actions
+                        </th>
+
+                    </tr>
+
+                    </thead>
+
+
+                    <tbody
+                        id="codesTable"
+                    >
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<script>
+
+
+/* =========================================================
+   SUPABASE
+   ========================================================= */
+
+const SUPABASE_FUNCTION =
+    "https://ghwtwpuyswthueqysvnx.supabase.co/functions/v1/admin-access-codes";
+
+
+const SUPABASE_PUBLISHABLE_KEY =
+    "sb_publishable_go_fk2r0PMvz1vcr1QJ_Iw_UjnlzdD9";
+
+
+/* =========================================================
+   STATE
+   ========================================================= */
+
+let adminSecret = "";
+
+let codes = [];
+
+
+/* =========================================================
+   LOGIN
+   ========================================================= */
+
+async function login() {
+
+    const input =
+        document.getElementById(
+            "adminSecret"
+        );
+
+
+    const secret =
+        input.value.trim();
+
+
+    const message =
+        document.getElementById(
+            "loginMessage"
+        );
+
+
+    if (!secret) {
+
+        showMessage(
+            message,
+            "Please enter the admin secret.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    adminSecret = secret;
+
+
+    try {
+
+        await loadCodes(true);
+
+
+        document.getElementById(
+            "loginScreen"
+        ).style.display = "none";
+
+
+        document.getElementById(
+            "adminScreen"
+        ).style.display = "block";
+
+
+    } catch (error) {
+
+        adminSecret = "";
+
+
+        showMessage(
+            message,
+            error.message ||
+            "Login failed.",
+            "error"
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   LOGOUT
+   ========================================================= */
+
+function logout() {
+
+    adminSecret = "";
+
+    codes = [];
+
+
+    document.getElementById(
+        "adminScreen"
+    ).style.display = "none";
+
+
+    document.getElementById(
+        "loginScreen"
+    ).style.display = "block";
+
+
+    document.getElementById(
+        "adminSecret"
+    ).value = "";
+
+}
+
+
+/* =========================================================
+   API REQUEST
+   ========================================================= */
+
+async function apiRequest(
+    action,
+    extra = {}
+) {
+
+    if (!adminSecret) {
+
+        throw new Error(
+            "You are not logged in."
+        );
+
+    }
+
+
+    const response =
+        await fetch(
+            SUPABASE_FUNCTION,
+            {
+
+                method: "POST",
+
+
+                headers: {
+
+                    "Content-Type":
+                        "application/json",
+
+                    "apikey":
+                        SUPABASE_PUBLISHABLE_KEY,
+
+                    "Authorization":
+                        "Bearer " +
+                        SUPABASE_PUBLISHABLE_KEY,
+
+                    "x-admin-secret":
+                        adminSecret
+
+                },
+
+
+                body:
+                    JSON.stringify({
+                        action:
+                            action,
+                        ...extra
+                    })
+
+            }
+        );
+
+
+    const text =
+        await response.text();
+
+
+    let data;
+
+
+    try {
+
+        data =
+            text
+                ? JSON.parse(text)
+                : {};
+
+    } catch {
+
+        throw new Error(
+            "Invalid server response."
+        );
+
+    }
+
+
+    if (!response.ok) {
+
+        throw new Error(
+            data.message ||
+            data.error ||
+            "Server request failed."
+        );
+
+    }
+
+
+    if (
+        data.success === false
+    ) {
+
+        throw new Error(
+            data.message ||
+            "Request failed."
+        );
+
+    }
+
+
+    return data;
+
+}
+
+
+/* =========================================================
+   LOAD CODES
+   ========================================================= */
+
+async function loadCodes(
+    silent = false
+) {
+
+    try {
+
+        const data =
+            await apiRequest(
+                "list"
+            );
+
+
+        codes =
+            Array.isArray(
+                data.codes
+            )
+                ? data.codes
+                : [];
+
+
+        updateStats();
+
+        renderTable();
+
+
+    } catch (error) {
+
+        if (!silent) {
+
+            alert(
+                error.message ||
+                "Unable to load codes."
+            );
+
+        } else {
+
+            throw error;
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   GENERATE CODE
+   ========================================================= */
+
+async function generateCode() {
+
+    const duration =
+        Number(
+            document.getElementById(
+                "duration"
+            ).value
+        );
+
+    const isPermanent =
+        duration === 0;
+
+    const button =
+        document.getElementById(
+            "generateButton"
+        );
+
+    const message =
+        document.getElementById(
+            "generateMessage"
+        );
+
+    button.disabled = true;
+
+    button.textContent =
+        "GENERATING...";
+
+    try {
+
+        const data =
+            await apiRequest(
+                "generate",
+                {
+                    duration_days:
+                        duration,
+
+                    permanent:
+                        isPermanent
+                }
+            );
+
+        const generatedCode =
+            data.code ||
+            data.access_code ||
+            "";
+
+        if (generatedCode) {
+
+            showMessage(
+                message,
+                isPermanent
+                    ? "👑 GOD Code generated: " +
+                      generatedCode
+                    : "Generated: " +
+                      generatedCode,
+                "success"
+            );
+
+        } else {
+
+            showMessage(
+                message,
+                "Code generated successfully.",
+                "success"
+            );
+
+        }
+
+        await loadCodes();
+
+    } catch (error) {
+
+        showMessage(
+            message,
+            error.message ||
+            "Failed to generate code.",
+            "error"
+        );
+
+    } finally {
+
+        button.disabled = false;
+
+        button.textContent =
+            "GENERATE CODE";
+
+    }
+
+}
+
+
+/* =========================================================
+   CHANGE STATUS
+   ========================================================= */
+
+async function changeStatus(
+    id,
+    makeActive
+) {
+
+    const code =
+        codes.find(
+            item =>
+                item.id === id
+        );
+
+
+    if (!code) {
+        return;
+    }
+
+
+    const actionText =
+        makeActive
+            ? "reactivate"
+            : "revoke";
+
+
+    const confirmed =
+        confirm(
+            "Are you sure you want to " +
+            actionText +
+            " this code?\n\n" +
+            code.code
+        );
+
+
+    if (!confirmed) {
+        return;
+    }
+
+
+    try {
+
+        await apiRequest(
+            "set_active",
+            {
+                code: code.code,
+                is_active: makeActive
+            }
+        );
+
+
+        await loadCodes();
+
+
+    } catch (error) {
+
+        alert(
+            error.message ||
+            "Unable to change code status."
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   COPY CODE
+   ========================================================= */
+
+async function copyCode(
+    code
+) {
+
+    try {
+
+        await navigator
+            .clipboard
+            .writeText(code);
+
+
+        alert(
+            "Copied:\n\n" +
+            code
+        );
+
+
+    } catch {
+
+        prompt(
+            "Copy this access code:",
+            code
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   DASHBOARD STATISTICS
+   ========================================================= */
+
+function updateStats() {
+
+    const total =
+        codes.length;
+
+
+    const active =
+        codes.filter(
+            item =>
+                item.is_active === true
+        ).length;
+
+
+    const revoked =
+        codes.filter(
+            item =>
+                item.is_active !== true
+        ).length;
+
+
+    const used =
+        codes.filter(
+            item =>
+                item.device_id &&
+                String(
+                    item.device_id
+                ).trim() !== ""
+        ).length;
+
+
+    document.getElementById(
+        "totalCount"
+    ).textContent =
+        total;
+
+
+    document.getElementById(
+        "activeCount"
+    ).textContent =
+        active;
+
+
+    document.getElementById(
+        "usedCount"
+    ).textContent =
+        used;
+
+
+    document.getElementById(
+        "revokedCount"
+    ).textContent =
+        revoked;
+
+}
+
+
+/* =========================================================
+   RENDER TABLE
+   ========================================================= */
+
+function renderTable() {
+
+    const table =
+        document.getElementById(
+            "codesTable"
+        );
+
+
+    const search =
+        document.getElementById(
+            "searchInput"
+        )
+        .value
+        .trim()
+        .toLowerCase();
+
+
+    const filter =
+        document.getElementById(
+            "statusFilter"
+        ).value;
+
+
+    let filtered =
+        codes.filter(
+            item => {
+
+
+                const code =
+                    String(
+                        item.code || ""
+                    ).toLowerCase();
+
+
+                const device =
+                    String(
+                        item.device_id || ""
+                    ).toLowerCase();
+
+
+                const matchesSearch =
+                    !search ||
+                    code.includes(search) ||
+                    device.includes(search);
+
+
+                if (!matchesSearch) {
+                    return false;
+                }
+
+
+                const isActive =
+                    item.is_active === true;
+
+
+                const isPermanent =
+                    item.is_permanent === true;
+
+
+                const isUsed =
+                    !!(
+                        item.device_id &&
+                        String(
+                            item.device_id
+                        ).trim() !== ""
+                    );
+
+
+                const expirationTime =
+                    item.expires_at
+                        ? new Date(
+                            item.expires_at
+                        ).getTime()
+                        : 0;
+
+
+                const now =
+                    Date.now();
+
+
+                const sevenDays =
+                    7 *
+                    24 *
+                    60 *
+                    60 *
+                    1000;
+
+
+                const isExpired =
+                    !isPermanent &&
+                    expirationTime > 0 &&
+                    expirationTime <= now;
+
+
+                const isExpiringSoon =
+                    !isPermanent &&
+                    expirationTime > now &&
+                    (
+                        expirationTime -
+                        now
+                    ) <= sevenDays;
+
+
+                /* ACTIVE */
+
+                if (
+                    filter === "active" &&
+                    (
+                        !isActive ||
+                        isExpired
+                    )
+                ) {
+                    return false;
+                }
+
+
+                /* EXPIRING SOON */
+
+                if (
+                    filter === "expiring" &&
+                    !isExpiringSoon
+                ) {
+                    return false;
+                }
+
+
+                /* EXPIRED */
+
+                if (
+                    filter === "expired" &&
+                    !isExpired
+                ) {
+                    return false;
+                }
+
+
+                /* REVOKED */
+
+                if (
+                    filter === "revoked" &&
+                    isActive
+                ) {
+                    return false;
+                }
+
+
+                /* USED */
+
+                if (
+                    filter === "used" &&
+                    !isUsed
+                ) {
+                    return false;
+                }
+
+
+                /* UNUSED */
+
+                if (
+                    filter === "unused" &&
+                    isUsed
+                ) {
+                    return false;
+                }
+
+
+                return true;
+
+            }
+        );
+
+
+    /* newest first */
+
+    filtered.sort(
+        (a, b) => {
+
+            const dateA =
+                new Date(
+                    a.activated_at ||
+                    0
+                ).getTime();
+
+
+            const dateB =
+                new Date(
+                    b.activated_at ||
+                    0
+                ).getTime();
+
+
+            return dateB - dateA;
+
+        }
+    );
+
+
+    if (
+        filtered.length === 0
+    ) {
+
+        table.innerHTML = `
+            <tr>
+                <td
+                    colspan="7"
+                    class="empty"
+                >
+                    No access codes found.
+                </td>
+            </tr>
+        `;
+
+        return;
+
+    }
+
+
+    table.innerHTML =
+        filtered
+            .map(
+                item =>
+                    createRow(item)
+            )
+            .join("");
+
+}
+
+
+/* =========================================================
+   CREATE TABLE ROW
+   ========================================================= */
+
+function createRow(
+    item
+) {
+
+    const isActive =
+        item.is_active === true;
+
+
+    const isPermanent =
+        item.is_permanent === true;
+
+
+    const isUsed =
+        !!(
+            item.device_id &&
+            String(
+                item.device_id
+            ).trim() !== ""
+        );
+
+
+    const expirationTime =
+        item.expires_at
+            ? new Date(
+                item.expires_at
+            ).getTime()
+            : 0;
+
+
+    const now =
+        Date.now();
+
+
+    const sevenDays =
+        7 *
+        24 *
+        60 *
+        60 *
+        1000;
+
+
+    const isExpired =
+        !isPermanent &&
+        expirationTime > 0 &&
+        expirationTime <= now;
+
+
+    const isExpiringSoon =
+        !isPermanent &&
+        expirationTime > now &&
+        (
+            expirationTime -
+            now
+        ) <= sevenDays;
+
+
+    /* =========================
+       DURATION
+       ========================= */
+
+    let durationText;
+
+
+    if (isPermanent) {
+
+        durationText =
+            "♾️ Permanent";
+
+    } else {
+
+        durationText =
+            (
+                item.duration_days ||
+                0
+            ) +
+            " days";
+
+    }
+
+
+    /* =========================
+       STATUS
+       ========================= */
+
+    let statusHtml;
+
+
+    if (!isActive) {
+
+        statusHtml = `
+            <span
+                class="badge badge-revoked"
+            >
+                ⚫ Revoked
+            </span>
+        `;
+
+
+    } else if (isPermanent) {
+
+        statusHtml = `
+            <span
+                class="badge badge-permanent"
+            >
+                ♾️ GOD
+            </span>
+        `;
+
+
+    } else if (isExpired) {
+
+        statusHtml = `
+            <span
+                class="badge badge-expired"
+            >
+                🔴 Expired
+            </span>
+        `;
+
+
+    } else if (isExpiringSoon) {
+
+        statusHtml = `
+            <span
+                class="badge badge-expiring"
+            >
+                🟠 Expiring Soon
+            </span>
+        `;
+
+
+    } else if (isUsed) {
+
+        statusHtml = `
+            <span
+                class="badge badge-used"
+            >
+                🟣 Used
+            </span>
+        `;
+
+
+    } else {
+
+        statusHtml = `
+            <span
+                class="badge badge-unused"
+            >
+                🔵 Unused
+            </span>
+        `;
+
+    }
+
+
+    /* =========================
+       DEVICE
+       ========================= */
+
+    const device =
+        isUsed
+            ? escapeHtml(
+                String(
+                    item.device_id
+                )
+            )
+            : "—";
+
+
+    /* =========================
+       DATES
+       ========================= */
+
+    const activated =
+        formatDate(
+            item.activated_at
+        );
+
+
+    const expires =
+        isPermanent
+            ? "Never"
+            : formatDate(
+                item.expires_at
+            );
+
+
+    /* =========================
+       ACTION
+       ========================= */
+
+    const actionButton =
+        isActive
+
+            ? `
+                <button
+                    class="btn-danger"
+                    onclick="
+                        changeStatus(
+                            '${escapeJs(
+                                item.id
+                            )}',
+                            false
+                        )
+                    "
+                >
+                    REVOKE
+                </button>
+              `
+
+            : `
+                <button
+                    class="btn-success"
+                    onclick="
+                        changeStatus(
+                            '${escapeJs(
+                                item.id
+                            )}',
+                            true
+                        )
+                    "
+                >
+                    REACTIVATE
+                </button>
+              `;
+
+
+    return `
+
+        <tr>
+
+
+            <td>
+
+                <span
+                    class="code-cell"
+                >
+                    ${escapeHtml(
+                        item.code || ""
+                    )}
+                </span>
+
+
+                <button
+                    class="
+                        btn-secondary
+                        copy-btn
+                    "
+                    onclick="
+                        copyCode(
+                            '${escapeJs(
+                                item.code || ""
+                            )}'
+                        )
+                    "
+                >
+                    📋
+                </button>
+
+            </td>
+
+
+            <td>
+                ${durationText}
+            </td>
+
+
+            <td>
+                ${statusHtml}
+            </td>
+
+
+            <td>
+
+                <span
+                    style="
+                        display:block;
+                        max-width:180px;
+                        overflow:hidden;
+                        text-overflow:ellipsis;
+                        white-space:nowrap;
+                    "
+                    title="${escapeHtml(
+                        device
+                    )}"
+                >
+                    ${device}
+                </span>
+
+            </td>
+
+
+            <td>
+                ${activated}
+            </td>
+
+
+            <td>
+                ${expires}
+            </td>
+
+
+            <td>
+
+                <div class="actions">
+
+                    ${actionButton}
+
+                </div>
+
+            </td>
+
+
+        </tr>
+
+    `;
+
+}
+
+
+/* =========================================================
+   DATE FORMAT
+   ========================================================= */
+
+function formatDate(
+    value
+) {
+
+    if (!value) {
+        return "—";
+    }
+
+
+    const date =
+        new Date(value);
+
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+        return "—";
+    }
+
+
+    return date.toLocaleString(
+        "en-JP",
+        {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit"
+        }
+    );
+
+}
+
+
+/* =========================================================
+   CLEAR FILTERS
+   ========================================================= */
+
+function clearFilters() {
+
+    document.getElementById(
+        "searchInput"
+    ).value = "";
+
+
+    document.getElementById(
+        "statusFilter"
+    ).value = "all";
+
+
+    renderTable();
+
+}
+
+
+/* =========================================================
+   MESSAGE
+   ========================================================= */
+
+function showMessage(
+    element,
+    message,
+    type
+) {
+
+    element.textContent =
+        message;
+
+
+    element.className =
+        "message " + type;
+
+}
+
+
+/* =========================================================
+   HTML ESCAPE
+   ========================================================= */
+
+function escapeHtml(
+    value
+) {
+
+    return String(value)
+
+        .replace(
+            /&/g,
+            "&amp;"
+        )
+
+        .replace(
+            /</g,
+            "&lt;"
+        )
+
+        .replace(
+            />/g,
+            "&gt;"
+        )
+
+        .replace(
+            /"/g,
+            "&quot;"
+        )
+
+        .replace(
+            /'/g,
+            "&#039;"
+        );
+
+}
+
+
+/* =========================================================
+   JAVASCRIPT ESCAPE
+   ========================================================= */
+
+function escapeJs(
+    value
+) {
+
+    return String(value)
+
+        .replace(
+            /\\/g,
+            "\\\\"
+        )
+
+        .replace(
+            /'/g,
+            "\\'"
+        );
+
+}
+
+</script>
+
+
+</body>
+
+</html>
