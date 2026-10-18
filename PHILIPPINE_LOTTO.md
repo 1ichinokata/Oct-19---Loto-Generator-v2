@@ -29,3 +29,5 @@ Package workflow path fixed.
 
 
 Results source changed to Lottolyzer history pages for all five Philippine games.
+
+Rebuild requested after Lottolyzer source change.
