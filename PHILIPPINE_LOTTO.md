@@ -26,3 +26,6 @@ Note: PCSO's results page is a server-rendered form, so the result parser is int
 Packaging workflow initialized.
 
 Package workflow path fixed.
+
+
+Results source changed to Lottolyzer history pages for all five Philippine games.
