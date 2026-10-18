@@ -218,6 +218,13 @@ private fun getLotteryRules(
         "loto 7" ->
             37 to 7
 
+
+        "lotto 6/42" -> 42 to 6
+        "mega lotto 6/45" -> 45 to 6
+        "super lotto 6/49" -> 49 to 6
+        "grand lotto 6/55" -> 55 to 6
+        "ultra lotto 6/58" -> 58 to 6
+
         else ->
             43 to 6
     }
@@ -811,6 +818,10 @@ private fun ManualFavoriteDialog(
 
                                 "loto 7" ->
                                     "05 12 18 23 31 34 37"
+
+
+                                "lotto 6/42", "mega lotto 6/45", "super lotto 6/49", "grand lotto 6/55", "ultra lotto 6/58" ->
+                                    "05 12 18 23 31 34"
 
                                 else ->
                                     "05 12 18 23 31 42"
