@@ -1546,6 +1546,7 @@ fun Loto7Scaffold(
                 0 ->
 
                     Loto7GeneratorScreen(
+                    history = history,
                         combinations =
                             combinations,
 
@@ -1845,6 +1846,7 @@ fun Loto7LatestResultCard(
 
 @Composable
 fun Loto7GeneratorScreen(
+    history: List<Loto7Draw>,
     combinations: List<Loto7Combination>,
     oddEvenFilter: Loto7OddEvenFilter,
     lowHighFilter: Loto7LowHighFilter,
@@ -2042,6 +2044,15 @@ fun Loto7GeneratorScreen(
             )
         }
 
+
+        item {
+            val prediction = NextDrawPatternPredictor.predict(
+                draws = history.map { it.numbers },
+                numberCount = 7,
+                lowBoundary = 18
+            )
+            NextDrawPatternCard(prediction)
+        }
 
         item {
 
