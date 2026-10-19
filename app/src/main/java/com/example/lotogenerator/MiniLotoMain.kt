@@ -1717,6 +1717,15 @@ fun MiniLotoScaffold(
                     // FIX:
                     onAddManual = { numbers ->
                         onAddManualFavorite(numbers)
+                    },
+                    winningAmountFor = { item ->
+                        val targetDraw = history.firstOrNull { draw -> draw.drawNumber == item.targetDrawNumber }
+                        if (targetDraw == null) null else {
+                            val matches = item.numbers.count { number -> targetDraw.numbers.contains(number) }
+                            val bonusHit = targetDraw.bonus != null && item.numbers.contains(targetDraw.bonus)
+                            val division = if (matches == 5) 1 else if (matches == 4 && bonusHit) 2 else if (matches == 4) 3 else if (matches == 3) 4 else 0
+                            if (division == 0) null else targetDraw.prizes.firstOrNull { prize -> prize.division == division }?.prizeAmount
+                        }
                     }
                 )
             }
