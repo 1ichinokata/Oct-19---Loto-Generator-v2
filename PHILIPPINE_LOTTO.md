@@ -35,3 +35,5 @@ Rebuild requested after Lottolyzer source change.
 Philippine History updated to match Japan Loto 6 expanded history and previous-10 analysis.
 
 Historical Method Match added to Japan Loto 6, Loto 7, Mini Loto, and all Philippine Lotto history screens. Classification uses only prior draws.
+
+Favorites: manual number grid selector added. Japan Loto 6/Loto 7/Mini Loto favorite details now show winning amount when the target draw and Lottolyzer prize data identify a winning division.
