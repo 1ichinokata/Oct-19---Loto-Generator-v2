@@ -15,6 +15,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -237,7 +241,8 @@ fun FavoriteListScreen(
     latestDrawNumber: Int?,
     latestDrawNumbers: Set<Int>,
     onRemove: (FavoriteItem) -> Unit,
-    onAddManual: (List<Int>) -> Unit
+    onAddManual: (List<Int>) -> Unit,
+    winningAmountFor: (FavoriteItem) -> Long? = { null }
 ) {
 
     var showAddDialog by remember {
@@ -371,7 +376,8 @@ fun FavoriteListScreen(
                     latestDrawNumbers = latestDrawNumbers,
                     onRemove = {
                         onRemove(item)
-                    }
+                    },
+                    winningAmount = winningAmountFor(item)
                 )
             }
         }
@@ -384,7 +390,8 @@ private fun FavoriteItemCard(
     lotteryName: String,
     latestDrawNumber: Int?,
     latestDrawNumbers: Set<Int>,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    winningAmount: Long?
 ) {
 
     var expanded by remember {
@@ -628,6 +635,12 @@ private fun FavoriteItemCard(
                     Modifier.height(10.dp)
                 )
 
+                if (winningAmount != null) {
+                    Text("Winning Amount", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("¥" + String.format(Locale.US, "%,d", winningAmount), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(10.dp))
+                }
+
                 Text(
                     "Status",
                     style = MaterialTheme.typography.labelSmall,
@@ -750,137 +763,48 @@ private fun ManualFavoriteDialog(
     onDismiss: () -> Unit,
     onSave: (List<Int>) -> Unit
 ) {
-
-    val (maxNumber, requiredNumbers) =
-        getLotteryRules(lotteryName)
-
-    var numberText by remember {
-        mutableStateOf("")
-    }
-
-    val numbers =
-        numberText
-            .split(
-                Regex("[,\\s-]+")
-            )
-            .mapNotNull {
-                it.toIntOrNull()
-            }
-            .distinct()
-            .sorted()
-
-    val valid =
-        numbers.size == requiredNumbers &&
-                numbers.all {
-                    it in 1..maxNumber
-                }
+    val (maxNumber, requiredNumbers) = getLotteryRules(lotteryName)
+    var selected by remember { mutableStateOf(setOf<Int>()) }
+    val valid = selected.size == requiredNumbers
 
     AlertDialog(
         onDismissRequest = onDismiss,
-
-        title = {
-            Text(
-                "Add $lotteryName Favorite"
-            )
-        },
-
+        title = { Text("Add $lotteryName Favorite") },
         text = {
-
             Column {
-
-                Text(
-                    "Enter $requiredNumbers different numbers from 1 to $maxNumber."
-                )
-
-                Spacer(
-                    Modifier.height(12.dp)
-                )
-
-                OutlinedTextField(
-                    value = numberText,
-                    onValueChange = {
-                        numberText = it
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = {
-                        Text("Numbers")
-                    },
-                    placeholder = {
-
-                        Text(
-                            when (lotteryName.lowercase()) {
-
-                                "mini loto" ->
-                                    "05 12 18 23 31"
-
-                                "loto 6" ->
-                                    "05 12 18 23 31 42"
-
-                                "loto 7" ->
-                                    "05 12 18 23 31 34 37"
-
-
-                                "lotto 6/42", "mega lotto 6/45", "super lotto 6/49", "grand lotto 6/55", "ultra lotto 6/58" ->
-                                    "05 12 18 23 31 34"
-
-                                else ->
-                                    "05 12 18 23 31 42"
+                Text("Choose exactly $requiredNumbers numbers from 1 to $maxNumber.")
+                Spacer(Modifier.height(8.dp))
+                Text("Selected ${selected.size} / $requiredNumbers", fontWeight = FontWeight.Bold, color = if (valid) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                Spacer(Modifier.height(8.dp))
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(if (maxNumber >= 45) 7 else 6),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 390.dp),
+                    contentPadding = PaddingValues(2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    gridItems((1..maxNumber).toList()) { number ->
+                        val isSelected = number in selected
+                        Surface(
+                            onClick = { selected = when { isSelected -> selected - number; selected.size < requiredNumbers -> selected + number; else -> selected } },
+                            shape = RoundedCornerShape(50),
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                        ) {
+                            Box(modifier = Modifier.padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
+                                Text(number.toString().padStart(2, '0'), fontWeight = FontWeight.Bold)
                             }
-                        )
-                    },
-                    singleLine = true
-                )
-
-                Spacer(
-                    Modifier.height(8.dp)
-                )
-
-                if (numbers.isNotEmpty()) {
-
-                    Text(
-                        "Selected: ${
-                            numbers.joinToString(" • ") {
-                                it.toString().padStart(2, '0')
-                            }
-                        }",
-                        fontWeight = FontWeight.Bold
-                    )
+                        }
+                    }
                 }
-
-                if (numberText.isNotBlank() && !valid) {
-
-                    Spacer(
-                        Modifier.height(6.dp)
-                    )
-
-                    Text(
-                        "Please enter exactly $requiredNumbers unique numbers from 1–$maxNumber.",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.labelSmall
-                    )
+                if (selected.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text("Selected: " + selected.sorted().joinToString(" • ") { it.toString().padStart(2, '0') }, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                 }
             }
         },
-
-        confirmButton = {
-
-            Button(
-                enabled = valid,
-                onClick = {
-                    onSave(numbers)
-                }
-            ) {
-                Text("Save")
-            }
-        },
-
-        dismissButton = {
-
-            TextButton(
-                onClick = onDismiss
-            ) {
-                Text("Cancel")
-            }
-        }
+        confirmButton = { Button(enabled = valid, onClick = { onSave(selected.sorted()) }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
+
