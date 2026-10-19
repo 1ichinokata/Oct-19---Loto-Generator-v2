@@ -3557,7 +3557,31 @@ fun MiniLotoHistoryScreen(
                         )
 
 
-                        Text(
+                                                    val historicalMethodMatches = HistoricalMethodClassifier.classify(
+                                numbers = draw.numbers,
+                                previousDraws = history.filter { it.drawNumber in (draw.drawNumber - 10)..(draw.drawNumber - 1) }.map { it.numbers },
+                                maxNumber = 31
+                            )
+
+                            Text(
+                                "Method Match",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                if (historicalMethodMatches.isEmpty()) "No strong method match"
+                                else historicalMethodMatches.joinToString(" • "),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                "Based only on draws before this result.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(12.dp))
+
+Text(
 
                             "Numbers Appeared in Previous 10 Draws",
 
