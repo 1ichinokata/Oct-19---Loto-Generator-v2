@@ -528,7 +528,31 @@ private fun PhilippineHistoryScreen(
                             HorizontalDivider()
                             Spacer(Modifier.height(12.dp))
 
-                            Text("Numbers Appeared in Previous 10 Draws", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                                        val historicalMethodMatches = HistoricalMethodClassifier.classify(
+                                numbers = draw.numbers,
+                                previousDraws = appearanceDraws.map { it.numbers },
+                                maxNumber = game.maxNumber
+                            )
+
+                            Text(
+                                "Method Match",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                if (historicalMethodMatches.isEmpty()) "No strong method match"
+                                else historicalMethodMatches.joinToString(" • "),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                "Based only on draws before this result.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(12.dp))
+
+Text("Numbers Appeared in Previous 10 Draws", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
 
                             // Same behavior as Japan Loto 6: skip the immediately previous draw,
                             // then inspect the ten draws before it.
