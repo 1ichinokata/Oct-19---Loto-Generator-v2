@@ -530,7 +530,7 @@ private fun PhilippineHistoryScreen(
 
                                                         val historicalMethodMatches = HistoricalMethodClassifier.classify(
                                 numbers = draw.numbers,
-                                previousDraws = appearanceDraws.map { it.numbers },
+                                previousDraws = history.drop(drawIndex + 2).take(10).map { previousDraw -> previousDraw.numbers },
                                 maxNumber = game.maxNumber
                             )
 
