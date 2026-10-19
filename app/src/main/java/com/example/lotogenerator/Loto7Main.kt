@@ -1641,6 +1641,23 @@ fun Loto7Scaffold(
                         onAddManual = {
                                 numbers ->
                             onAddManualFavorite(numbers)
+                        },
+                        winningAmountFor = { item ->
+                            val target = history.firstOrNull { draw -> draw.drawNumber == item.targetDrawNumber }
+                            target?.let { draw ->
+                                val mainMatches = item.numbers.count { number -> number in draw.numbers }
+                                val bonusMatches = item.numbers.count { number -> number in draw.bonusNumbers }
+                                val prizeDivision = when {
+                                    mainMatches == 7 -> 1
+                                    mainMatches == 6 && bonusMatches >= 1 -> 2
+                                    mainMatches == 6 -> 3
+                                    mainMatches == 5 -> 4
+                                    mainMatches == 4 -> 5
+                                    mainMatches == 3 && bonusMatches >= 1 -> 6
+                                    else -> null
+                                }
+                                prizeDivision?.let { division -> draw.prizes.firstOrNull { prize -> prize.division == division }?.prizeAmount }
+                            }
                         }
                     )
             }
