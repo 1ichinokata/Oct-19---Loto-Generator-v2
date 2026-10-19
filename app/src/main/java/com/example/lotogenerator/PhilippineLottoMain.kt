@@ -281,7 +281,7 @@ fun PhilippineLottoApp(vm: PhilippineLottoViewModel = viewModel()) {
         }
 
         when (tab) {
-            0 -> PhilippineGeneratorScreen(game, latest, combinations, favorites, method, oddEven, lowHigh, loading, error, vm::setMethod, vm::setOddEven, vm::setLowHigh, vm::load, vm::toggleFavorite)
+            0 -> PhilippineGeneratorScreen(game, latest, history, combinations, favorites, method, oddEven, lowHigh, loading, error, vm::setMethod, vm::setOddEven, vm::setLowHigh, vm::load, vm::toggleFavorite)
             1 -> PhilippineHistoryScreen(game, history, loading, error, vm::load)
             2 -> FavoriteListScreen(game.title, favorites, latest?.drawNumber, latest?.numbers?.toSet().orEmpty(), vm::removeFavorite, vm::addManualFavorite)
         }
@@ -305,6 +305,7 @@ private fun PhilippineGameMenu(selected: PhilippineLottoGame, onSelected: (Phili
 private fun PhilippineGeneratorScreen(
     game: PhilippineLottoGame,
     latest: PhilippineLottoDraw?,
+    history: List<PhilippineLottoDraw>,
     combinations: List<PhilippineCombination>,
     favorites: List<FavoriteItem>,
     method: PhilippineGeneratorMethod,
@@ -347,6 +348,15 @@ private fun PhilippineGeneratorScreen(
                     latest.winners?.let { Text("Winners: " + it) }
                 }
             }
+        }
+
+        item {
+            val prediction = NextDrawPatternPredictor.predict(
+                draws = history.map { it.numbers },
+                numberCount = 6,
+                lowBoundary = game.maxNumber / 2
+            )
+            NextDrawPatternCard(prediction)
         }
 
         item {
