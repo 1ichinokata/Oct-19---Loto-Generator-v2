@@ -33,3 +33,5 @@ Results source changed to Lottolyzer history pages for all five Philippine games
 Rebuild requested after Lottolyzer source change.
 
 Philippine History updated to match Japan Loto 6 expanded history and previous-10 analysis.
+
+Historical Method Match added to Japan Loto 6, Loto 7, Mini Loto, and all Philippine Lotto history screens. Classification uses only prior draws.
