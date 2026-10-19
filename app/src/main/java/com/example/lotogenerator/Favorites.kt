@@ -631,6 +631,29 @@ private fun FavoriteItemCard(
                     )
                 }
 
+                val maxNumber = getLotteryRules(lotteryName).first
+                val lowBoundary = maxNumber / 2
+                val oddCount = item.numbers.count { number -> number % 2 != 0 }
+                val evenCount = item.numbers.size - oddCount
+                val lowCount = item.numbers.count { number -> number <= lowBoundary }
+                val highCount = item.numbers.size - lowCount
+
+                Text(
+                    "Combination Pattern",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "Odd / Even: $oddCount / $evenCount",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Low / High: $lowCount / $highCount",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
                 Spacer(
                     Modifier.height(10.dp)
                 )
