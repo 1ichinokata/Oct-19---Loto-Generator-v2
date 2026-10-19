@@ -1617,6 +1617,7 @@ fun MiniLotoScaffold(
             when (selectedTab) {
 
                 0 -> MiniLotoGeneratorScreen(
+                    history = history,
 
                     combinations =
                         combinations,
@@ -1939,6 +1940,7 @@ fun MiniLotoLatestResultCard(
 
 @Composable
 fun MiniLotoGeneratorScreen(
+    history: List<MiniLotoDraw>,
     combinations: List<MiniLotoCombination>,
     oddEvenFilter: MiniLotoOddEvenFilter,
     lowHighFilter: MiniLotoLowHighFilter,
@@ -2171,6 +2173,15 @@ fun MiniLotoGeneratorScreen(
             )
         }
 
+
+        item {
+            val prediction = NextDrawPatternPredictor.predict(
+                draws = history.map { it.numbers },
+                numberCount = 5,
+                lowBoundary = 15
+            )
+            NextDrawPatternCard(prediction)
+        }
 
         item {
 
