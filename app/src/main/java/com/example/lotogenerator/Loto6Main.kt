@@ -1630,6 +1630,7 @@ fun Loto6Scaffold(
                 0 ->
 
                     Loto6GeneratorScreen(
+                    history = history,
 
                         combinations =
                             combinations,
@@ -1960,6 +1961,7 @@ fun Loto6LatestResultCard(
 
 @Composable
 fun Loto6GeneratorScreen(
+    history: List<Loto6Draw>,
     combinations: List<Loto6Combination>,
     oddEvenFilter: Loto6OddEvenFilter,
     lowHighFilter: Loto6LowHighFilter,
@@ -2181,6 +2183,15 @@ fun Loto6GeneratorScreen(
             )
         }
 
+
+        item {
+            val prediction = NextDrawPatternPredictor.predict(
+                draws = history.map { it.numbers },
+                numberCount = 6,
+                lowBoundary = 21
+            )
+            NextDrawPatternCard(prediction)
+        }
 
         item {
 
