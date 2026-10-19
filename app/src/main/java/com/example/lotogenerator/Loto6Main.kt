@@ -1736,6 +1736,15 @@ fun Loto6Scaffold(
                             onAddManualFavorite(
                                 numbers
                             )
+                        },
+                        winningAmountFor = { item ->
+                            val target = history.firstOrNull { it.drawNumber == item.targetDrawNumber } ?: latestDraw?.takeIf { it.drawNumber == item.targetDrawNumber }
+                            target?.let { draw ->
+                                val main = item.numbers.count { it in draw.numbers }
+                                val bonus = draw.bonus?.let { it in item.numbers } == true
+                                val division = when { main == 6 -> 1; main == 5 && bonus -> 2; main == 5 -> 3; main == 4 -> 4; main == 3 -> 5; else -> null }
+                                division?.let { d -> draw.prizes.firstOrNull { it.division == d }?.prizeAmount }
+                            }
                         }
                     )
             }
