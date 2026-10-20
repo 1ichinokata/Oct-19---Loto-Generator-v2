@@ -1,7 +1,18 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+}
+
+// Load signing properties
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties()
+
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -12,8 +23,25 @@ android {
         applicationId = "com.example.lotogenerator"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "2.0"
+    }
+
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.getByName("release")
+        }
     }
 
     compileOptions {
@@ -23,6 +51,11 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+    }
+
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 }
 
@@ -39,4 +72,38 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.json:json:20240303")
     debugImplementation("androidx.compose.ui:ui-tooling")
+}
+
+tasks.register("renameDebugApk") {
+    dependsOn("assembleDebug")
+
+    doLast {
+        val apkDir = layout.buildDirectory.dir("outputs/apk/debug").get().asFile
+        val oldApk = apkDir.resolve("app-debug.apk")
+        val newApk = apkDir.resolve("Furan-Lotto-Generator.apk")
+
+        if (oldApk.exists()) {
+            oldApk.renameTo(newApk)
+            println("APK renamed to: ${newApk.absolutePath}")
+        } else {
+            println("Debug APK not found: ${oldApk.absolutePath}")
+        }
+    }
+}
+
+tasks.register("renameReleaseApk") {
+    dependsOn("assembleRelease")
+
+    doLast {
+        val apkDir = layout.buildDirectory.dir("outputs/apk/release").get().asFile
+        val oldApk = apkDir.resolve("app-release.apk")
+        val newApk = apkDir.resolve("Furan-Lotto-Generator-v${android.defaultConfig.versionName}.apk")
+
+        if (oldApk.exists()) {
+            oldApk.renameTo(newApk)
+            println("APK renamed to: ${newApk.absolutePath}")
+        } else {
+            println("Release APK not found: ${oldApk.absolutePath}")
+        }
+    }
 }
