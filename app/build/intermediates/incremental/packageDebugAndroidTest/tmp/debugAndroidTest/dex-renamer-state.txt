@@ -1,0 +1,4 @@
+#Tue Oct 06 18:09:00 JST 2026
+base.0=C\:\\Users\\isko\\AndroidStudioProjects\\combined_loto\\app\\build\\intermediates\\dex\\debugAndroidTest\\mergeProjectDexDebugAndroidTest\\0\\classes.dex
+path.0=0/classes.dex
+renamed.0=classes.dex
