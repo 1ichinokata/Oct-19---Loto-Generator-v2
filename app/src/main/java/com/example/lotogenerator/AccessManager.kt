@@ -12,8 +12,13 @@ import org.json.JSONObject
 
 object AccessManager {
 
+
+
     private const val SUPABASE_URL =
         "https://ghwtwpuyswthueqysvnx.supabase.co"
+
+    private const val MANUAL_LOCK =
+        "manual_lock"
 
     private const val SUPABASE_PUBLISHABLE_KEY =
         "sb_publishable_go_fk2r0PMvz1vcr1QJ_Iw_UjnlzdD9"
@@ -174,6 +179,56 @@ object AccessManager {
         )
     }
 
+    fun setManualLock(
+        context: Context,
+        locked: Boolean
+    ) {
+        context
+            .getSharedPreferences(
+                PREFS_NAME,
+                Context.MODE_PRIVATE
+            )
+            .edit()
+            .putBoolean(
+                MANUAL_LOCK,
+                locked
+            )
+            .apply()
+    }
+
+    fun isManuallyLocked(
+        context: Context
+    ): Boolean {
+
+        return context
+            .getSharedPreferences(
+                PREFS_NAME,
+                Context.MODE_PRIVATE
+            )
+            .getBoolean(
+                MANUAL_LOCK,
+                false
+            )
+    }
+
+
+    suspend fun restoreAccess(
+        context: Context
+    ): ActivationResult {
+
+        return callServer(
+            context = context,
+            code = "",
+            action = "restore"
+        )
+    }
+
+    private const val TRIAL_ACTIVE =
+        "trial_active"
+
+    private const val TRIAL_EXPIRES_AT =
+        "trial_expires_at"
+
     /*
      * Communicate with Supabase.
      */
@@ -190,8 +245,10 @@ object AccessManager {
                 val cleanCode =
                     code.trim().uppercase()
 
-                if (cleanCode.isEmpty()) {
-
+                if (
+                    cleanCode.isEmpty() &&
+                    action != "restore"
+                ) {
                     return@withContext ActivationResult(
                         success = false,
                         message =
@@ -298,6 +355,12 @@ object AccessManager {
                                 false
                             )
 
+                        val restoredCode =
+                            result.optString(
+                                "code",
+                                cleanCode
+                            )
+
                         /*
                          * Permanent access.
                          */
@@ -324,6 +387,9 @@ object AccessManager {
                                 .remove(EXPIRES_AT)
                                 .apply()
 
+                            // Paid access replaces the trial.
+                            clearTrialState(context)
+
                             return@withContext ActivationResult(
                                 success = true,
                                 permanent = true,
@@ -344,17 +410,23 @@ object AccessManager {
                         val expiresAtMillis =
                             try {
 
-                                java.time.Instant
-                                    .parse(
-                                        expiresAtString
-                                    )
+                                java.time.OffsetDateTime
+                                    .parse(expiresAtString)
+                                    .toInstant()
                                     .toEpochMilli()
 
-                            } catch (
-                                e: Exception
-                            ) {
+                            } catch (e: Exception) {
 
-                                0L
+                                try {
+
+                                    java.time.Instant
+                                        .parse(expiresAtString)
+                                        .toEpochMilli()
+
+                                } catch (e2: Exception) {
+
+                                    0L
+                                }
                             }
 
                         if (
@@ -373,6 +445,9 @@ object AccessManager {
                         /*
                          * Save the current valid access.
                          */
+                        /*
+ * Save the current valid access.
+ */
                         context
                             .getSharedPreferences(
                                 PREFS_NAME,
@@ -389,13 +464,16 @@ object AccessManager {
                             )
                             .putString(
                                 ACCESS_CODE,
-                                cleanCode
+                                restoredCode
                             )
                             .putLong(
                                 EXPIRES_AT,
                                 expiresAtMillis
                             )
                             .apply()
+
+// Paid access replaces the trial.
+                        clearTrialState(context)
 
                         ActivationResult(
                             success = true,
@@ -444,7 +522,10 @@ object AccessManager {
                 Context.MODE_PRIVATE
             )
             .edit()
-            .clear()
+            .remove(ACCESS_GRANTED)
+            .remove(EXPIRES_AT)
+            .remove(PERMANENT_ACCESS)
+            .remove(ACCESS_CODE)
             .apply()
     }
 
@@ -497,6 +578,279 @@ object AccessManager {
                         )
     }
 
+    suspend fun checkTrial(
+        context: Context
+    ): TrialResult {
+
+        return withContext(Dispatchers.IO) {
+
+            try {
+                val deviceId = getDeviceId(context)
+
+                val json = JSONObject().apply {
+                    put("device_id", deviceId)
+                    put("action", "trial")
+                }
+
+                val body =
+                    json.toString().toRequestBody(
+                        "application/json; charset=utf-8"
+                            .toMediaType()
+                    )
+
+                val request =
+                    Request.Builder()
+                        .url(FUNCTION_URL)
+                        .post(body)
+                        .addHeader(
+                            "Content-Type",
+                            "application/json"
+                        )
+                        .addHeader(
+                            "apikey",
+                            SUPABASE_PUBLISHABLE_KEY
+                        )
+                        .addHeader(
+                            "Authorization",
+                            "Bearer $SUPABASE_PUBLISHABLE_KEY"
+                        )
+                        .build()
+
+                client.newCall(request)
+                    .execute()
+                    .use { response ->
+
+                        val responseBody =
+                            response.body?.string().orEmpty()
+
+                        val result =
+                            if (responseBody.isNotBlank()) {
+                                JSONObject(responseBody)
+                            } else {
+                                JSONObject()
+                            }
+
+                        val success =
+                            result.optBoolean(
+                                "success",
+                                false
+                            )
+
+                        val expired =
+                            result.optBoolean(
+                                "expired",
+                                false
+                            )
+
+                        if (!success) {
+
+                            /*
+                             * If Supabase says the trial expired,
+                             * clear the LOCAL trial state too.
+                             */
+                            if (expired) {
+                                context
+                                    .getSharedPreferences(
+                                        PREFS_NAME,
+                                        Context.MODE_PRIVATE
+                                    )
+                                    .edit()
+                                    .putBoolean(
+                                        TRIAL_ACTIVE,
+                                        false
+                                    )
+                                    .putLong(
+                                        TRIAL_EXPIRES_AT,
+                                        0L
+                                    )
+                                    .apply()
+                            }
+
+                            return@withContext TrialResult(
+                                success = false,
+                                expired = expired,
+                                message =
+                                    result.optString(
+                                        "message",
+                                        "Trial unavailable."
+                                    )
+                            )
+                        }
+
+                        val expiresAtString =
+                            result.optString(
+                                "trial_expires_at",
+                                ""
+                            )
+
+                        val expiresAtMillis =
+                            try {
+                                java.time.OffsetDateTime
+                                    .parse(expiresAtString)
+                                    .toInstant()
+                                    .toEpochMilli()
+                            } catch (e: Exception) {
+                                try {
+                                    java.time.Instant
+                                        .parse(expiresAtString)
+                                        .toEpochMilli()
+                                } catch (e2: Exception) {
+                                    0L
+                                }
+                            }
+
+                        if (expiresAtMillis <= 0L) {
+                            return@withContext TrialResult(
+                                success = false,
+                                message =
+                                    "Invalid trial expiration date: $expiresAtString"
+                            )
+                        }
+
+                        /*
+                         * IMPORTANT:
+                         * Save the server expiration locally.
+                         */
+                        context
+                            .getSharedPreferences(
+                                PREFS_NAME,
+                                Context.MODE_PRIVATE
+                            )
+                            .edit()
+                            .putBoolean(
+                                TRIAL_ACTIVE,
+                                true
+                            )
+                            .putLong(
+                                TRIAL_EXPIRES_AT,
+                                expiresAtMillis
+                            )
+                            .apply()
+
+                        TrialResult(
+                            success = true,
+                            expired = false,
+                            expiresAt = expiresAtMillis,
+                            message =
+                                result.optString(
+                                    "message",
+                                    "Trial is active."
+                                )
+                        )
+                    }
+
+            } catch (e: Exception) {
+
+                TrialResult(
+                    success = false,
+                    connectionError = true,
+                    message =
+                        "Unable to connect to the trial server: ${e.message}"
+                )
+            }
+        }
+    }
+
+    fun isTrialActive(
+        context: Context
+    ): Boolean {
+
+        val prefs =
+            context.getSharedPreferences(
+                PREFS_NAME,
+                Context.MODE_PRIVATE
+            )
+
+        if (
+            !prefs.getBoolean(
+                TRIAL_ACTIVE,
+                false
+            )
+        ) {
+            return false
+        }
+
+        val expiresAt =
+            prefs.getLong(
+                TRIAL_EXPIRES_AT,
+                0L
+            )
+
+        return expiresAt >
+                System.currentTimeMillis()
+    }
+
+
+    fun getTrialRemainingTime(
+        context: Context
+    ): Long {
+
+        val expiresAt =
+            context
+                .getSharedPreferences(
+                    PREFS_NAME,
+                    Context.MODE_PRIVATE
+                )
+                .getLong(
+                    TRIAL_EXPIRES_AT,
+                    0L
+                )
+
+        return maxOf(
+            0L,
+            expiresAt -
+                    System.currentTimeMillis()
+        )
+    }
+
+
+    fun getTrialRemainingDays(
+        context: Context
+    ): Long {
+
+        val remaining =
+            getTrialRemainingTime(context)
+
+        if (remaining <= 0L) {
+            return 0L
+        }
+
+        /*
+         * Round upward so a newly started
+         * 7-day trial displays "7 days".
+         */
+        val dayMillis =
+            24L * 60L * 60L * 1000L
+
+        return (
+                remaining +
+                        dayMillis -
+                        1L
+                ) / dayMillis
+    }
+
+
+    private fun clearTrialState(
+        context: Context
+    ) {
+        context
+            .getSharedPreferences(
+                PREFS_NAME,
+                Context.MODE_PRIVATE
+            )
+            .edit()
+            .remove(TRIAL_ACTIVE)
+            .remove(TRIAL_EXPIRES_AT)
+            .apply()
+    }
+
+    data class TrialResult(
+        val success: Boolean,
+        val expired: Boolean = false,
+        val expiresAt: Long = 0L,
+        val connectionError: Boolean = false,
+        val message: String
+    )
     data class ActivationResult(
         val success: Boolean,
         val permanent: Boolean = false,

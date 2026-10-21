@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +44,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.delay
 
 
@@ -85,16 +89,23 @@ private fun AppWithSplash() {
 
     var darkMode by remember {
         mutableStateOf(
-            preferences.getBoolean("dark_mode", false)
+            preferences.getBoolean(
+                "dark_mode",
+                false
+            )
         )
     }
 
     var showSplash by remember {
-        mutableStateOf(!SplashSession.shown)
+        mutableStateOf(
+            !SplashSession.shown
+        )
     }
 
     LaunchedEffect(Unit) {
+
         if (showSplash) {
+
             delay(5000L)
 
             SplashSession.shown = true
@@ -124,7 +135,10 @@ private fun AppWithSplash() {
 
                     preferences
                         .edit()
-                        .putBoolean("dark_mode", enabled)
+                        .putBoolean(
+                            "dark_mode",
+                            enabled
+                        )
                         .apply()
                 }
             )
@@ -176,7 +190,9 @@ private fun FuranSplashScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(
+                MaterialTheme.colorScheme.background
+            )
     ) {
 
         // Fixed user-approved splash artwork.
@@ -184,7 +200,8 @@ private fun FuranSplashScreen() {
             painter = painterResource(
                 R.drawable.furan_splash_reference
             ),
-            contentDescription = "Furan's Loto Generator startup splash",
+            contentDescription =
+                "Furan's Loto Generator startup splash",
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
         )
@@ -202,7 +219,8 @@ private fun FuranSplashScreen() {
             for (i in 0..3) {
 
                 val x =
-                    ((travel + i * w * 0.34f) % (w * 1.35f)) -
+                    ((travel + i * w * 0.34f) %
+                            (w * 1.35f)) -
                             w * 0.2f
 
                 val y =
@@ -215,7 +233,10 @@ private fun FuranSplashScreen() {
                         Color(0x334DDCFF)
                     },
                     topLeft = Offset(x, y),
-                    size = Size(w * 0.38f, 8f)
+                    size = Size(
+                        w * 0.38f,
+                        8f
+                    )
                 )
             }
 
@@ -227,10 +248,13 @@ private fun FuranSplashScreen() {
             ) {
 
                 val white =
-                    Color.White.copy(alpha = alpha)
+                    Color.White.copy(
+                        alpha = alpha
+                    )
 
                 val gold =
-                    Color(0xFFFFE36A).copy(alpha = alpha)
+                    Color(0xFFFFE36A)
+                        .copy(alpha = alpha)
 
                 drawLine(
                     color = white,
@@ -261,7 +285,10 @@ private fun FuranSplashScreen() {
                 drawCircle(
                     color = gold,
                     radius = radius * 0.18f,
-                    center = Offset(cx, cy)
+                    center = Offset(
+                        cx,
+                        cy
+                    )
                 )
             }
 
@@ -312,35 +339,177 @@ private fun ProtectedLotoApp(
 
     val context = LocalContext.current
 
-    val localAccess = remember {
-        AccessManager.isActivated(context)
-    }
-
     var activated by remember {
-        mutableStateOf(localAccess)
+        mutableStateOf(false)
     }
 
     var checkingAccess by remember {
-        mutableStateOf(localAccess)
+        mutableStateOf(true)
     }
 
-    LaunchedEffect(Unit) {
+    /*
+     * Changes every time the Activity resumes.
+     *
+     * Stripe flow:
+     *
+     * 1. User leaves the app.
+     * 2. Stripe Checkout opens.
+     * 3. User completes payment.
+     * 4. Stripe webhook grants access.
+     * 5. User returns to the app.
+     * 6. ON_RESUME increments accessSession.
+     * 7. LaunchedEffect runs again.
+     * 8. restoreAccess() checks the new paid access.
+     */
+    var accessSession by remember {
+        mutableStateOf(0)
+    }
 
-        if (localAccess) {
+    val lifecycleOwner =
+        LocalLifecycleOwner.current
 
-            checkingAccess = true
+    DisposableEffect(lifecycleOwner) {
 
-            val result =
-                AccessManager.validateCurrentAccess(context)
+        val observer =
+            LifecycleEventObserver { _, event ->
 
-            if (result.success) {
+                if (
+                    event ==
+                    Lifecycle.Event.ON_RESUME
+                ) {
+
+                    accessSession++
+                }
+            }
+
+        lifecycleOwner.lifecycle.addObserver(
+            observer
+        )
+
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(
+                observer
+            )
+        }
+    }
+
+    /*
+     * Check access:
+     *
+     * - on first startup
+     * - whenever the Activity resumes
+     * - after Settings deliberately locks access
+     *
+     * For Stripe purchases we retry restore several
+     * times because the Stripe webhook may take a
+     * moment to create/update access_codes.
+     */
+    LaunchedEffect(accessSession) {
+
+        checkingAccess = true
+
+        try {
+
+            /*
+             * Give Stripe/Supabase time to finish
+             * processing the payment.
+             */
+            if (accessSession > 0) {
+                delay(2000L)
+            }
+
+
+
+            /*
+             * First check locally saved paid access.
+             */
+            if (
+                AccessManager.isActivated(
+                    context
+                )
+            ) {
+
+                val result =
+                    AccessManager.validateCurrentAccess(
+                        context
+                    )
+
+                if (result.success) {
+
+                    activated = true
+                    return@LaunchedEffect
+
+                } else if (
+                    result.connectionError
+                ) {
+
+                    /*
+                     * Temporary connection failure.
+                     * Keep valid local access.
+                     */
+                    activated = true
+                    return@LaunchedEffect
+                }
+            }
+
+            /*
+             * No valid local access.
+             *
+             * Ask the server to restore paid access.
+             *
+             * Retry because the Stripe webhook can
+             * sometimes finish after the app resumes.
+             */
+            var restored = false
+
+            for (attempt in 1..5) {
+
+                val restoreResult =
+                    AccessManager.restoreAccess(
+                        context
+                    )
+
+                if (restoreResult.success) {
+
+                    restored = true
+                    break
+                }
+
+                /*
+                 * Wait before trying again.
+                 *
+                 * Do not wait after the final attempt.
+                 */
+                if (attempt < 5) {
+                    delay(2000L)
+                }
+            }
+
+            if (restored) {
 
                 activated = true
-
-            } else if (!result.connectionError) {
-
-                activated = false
+                return@LaunchedEffect
             }
+
+            /*
+             * No paid access found.
+             *
+             * Check the device's 7-day trial.
+             */
+            val trialResult =
+                AccessManager.checkTrial(
+                    context
+                )
+
+            activated =
+                trialResult.success &&
+                        !trialResult.expired
+
+        } catch (e: Exception) {
+
+            e.printStackTrace()
+
+        } finally {
 
             checkingAccess = false
         }
@@ -352,7 +521,8 @@ private fun ProtectedLotoApp(
 
             Box(
                 modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+                contentAlignment =
+                    Alignment.Center
             ) {
 
                 CircularProgressIndicator()
@@ -363,6 +533,16 @@ private fun ProtectedLotoApp(
 
             AccessScreen(
                 onActivated = {
+
+                    /*
+                     * User successfully entered
+                     * an Access Key.
+                     */
+                    AccessManager.setManualLock(
+                        context,
+                        false
+                    )
+
                     activated = true
                 }
             )
@@ -372,7 +552,23 @@ private fun ProtectedLotoApp(
 
             CombinedLotoApp(
                 darkMode = darkMode,
-                onDarkModeChange = onDarkModeChange
+                onDarkModeChange =
+                    onDarkModeChange,
+
+                onRequireAccessCode = {
+
+                    /*
+                     * Hidden Settings action.
+                     */
+                    AccessManager.setManualLock(
+                        context,
+                        true
+                    )
+
+                    activated = false
+
+                    accessSession++
+                }
             )
         }
     }
@@ -382,11 +578,14 @@ private fun ProtectedLotoApp(
 @Composable
 private fun CombinedLotoApp(
     darkMode: Boolean,
-    onDarkModeChange: (Boolean) -> Unit
+    onDarkModeChange: (Boolean) -> Unit,
+    onRequireAccessCode: () -> Unit
 ) {
 
     var lottery by remember {
-        mutableStateOf(Lottery.LOTO6)
+        mutableStateOf(
+            Lottery.LOTO6
+        )
     }
 
     var expanded by remember {
@@ -424,9 +623,18 @@ private fun CombinedLotoApp(
 
             SettingsScreen(
                 darkMode = darkMode,
-                onDarkModeChange = onDarkModeChange,
+                onDarkModeChange =
+                    onDarkModeChange,
+
                 onBack = {
                     showSettings = false
+                },
+
+                onRequireAccessCode = {
+
+                    showSettings = false
+
+                    onRequireAccessCode()
                 }
             )
 
@@ -435,18 +643,22 @@ private fun CombinedLotoApp(
             when (lottery) {
 
                 Lottery.LOTO6 -> {
+
                     Loto6App()
                 }
 
                 Lottery.LOTO7 -> {
+
                     Loto7App()
                 }
 
                 Lottery.MINI_LOTO -> {
+
                     MiniLotoApp()
                 }
 
                 Lottery.PHILIPPINE -> {
+
                     PhilippineLottoApp()
                 }
             }
@@ -468,7 +680,9 @@ private fun CombinedLotoApp(
                     }
                 ) {
 
-                    Text("$name ▼")
+                    Text(
+                        "$name ▼"
+                    )
                 }
 
                 DropdownMenu(
@@ -483,7 +697,10 @@ private fun CombinedLotoApp(
                             Text("🇯🇵 Loto 6")
                         },
                         onClick = {
-                            lottery = Lottery.LOTO6
+
+                            lottery =
+                                Lottery.LOTO6
+
                             expanded = false
                         }
                     )
@@ -493,7 +710,10 @@ private fun CombinedLotoApp(
                             Text("🇯🇵 Loto 7")
                         },
                         onClick = {
-                            lottery = Lottery.LOTO7
+
+                            lottery =
+                                Lottery.LOTO7
+
                             expanded = false
                         }
                     )
@@ -503,7 +723,10 @@ private fun CombinedLotoApp(
                             Text("🇯🇵 Mini Loto")
                         },
                         onClick = {
-                            lottery = Lottery.MINI_LOTO
+
+                            lottery =
+                                Lottery.MINI_LOTO
+
                             expanded = false
                         }
                     )
@@ -518,7 +741,8 @@ private fun CombinedLotoApp(
                         },
                         onClick = {
 
-                            lottery = Lottery.PHILIPPINE
+                            lottery =
+                                Lottery.PHILIPPINE
 
                             expanded = false
                         }
@@ -537,10 +761,16 @@ private fun CombinedLotoApp(
                         end = 12.dp
                     )
             ) {
+
                 Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "Settings",
-                    tint = MaterialTheme.colorScheme.onBackground
+                    imageVector =
+                        Icons.Default.Settings,
+                    contentDescription =
+                        "Settings",
+                    tint =
+                        MaterialTheme
+                            .colorScheme
+                            .onBackground
                 )
             }
         }

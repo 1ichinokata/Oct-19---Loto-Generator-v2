@@ -28,3 +28,7 @@ captures/
 Thumbs.db
 
 keystore.properties
+
+# Android build files
+/build/
+/app/build/
