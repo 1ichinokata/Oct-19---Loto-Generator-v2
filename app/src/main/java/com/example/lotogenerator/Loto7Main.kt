@@ -1474,8 +1474,12 @@ fun Loto7Scaffold(
     onAddManualFavorite: (List<Int>) -> Unit
 ) {
 
+    val tabPrefs = LocalContext.current.getSharedPreferences("navigation_state", Context.MODE_PRIVATE)
     var selectedTab by remember {
-        mutableStateOf(1)
+        mutableStateOf(tabPrefs.getInt("loto7_tab", 1))
+    }
+    LaunchedEffect(selectedTab) {
+        tabPrefs.edit().putInt("loto7_tab", selectedTab).apply()
     }
 
     val tabs =
@@ -1582,6 +1586,9 @@ fun Loto7Scaffold(
                 Modifier
                     .fillMaxSize()
                     .padding(padding)
+                    .lotoTabSwipe(selectedTab) { nextTab ->
+                        if (nextTab == 0) onHome() else selectedTab = nextTab
+                    }
         ) {
 
 
