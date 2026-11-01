@@ -823,6 +823,10 @@ private fun CombinedLotoApp(
             showHome -> {
 
                 LottoHomeScreen(
+                    onSwipeRight = {
+                        // Keep the currently selected lottery and open its Generator tab.
+                        showHome = false
+                    },
                     onJapan = {
 
                         lottery =
@@ -1108,6 +1112,7 @@ private fun CombinedLotoApp(
 
 @Composable
 private fun LottoHomeScreen(
+    onSwipeRight: () -> Unit,
     onJapan: () -> Unit,
     onPhilippines: () -> Unit,
     onSettings: () -> Unit
@@ -1116,6 +1121,9 @@ private fun LottoHomeScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .lotoTabSwipe(selectedTab = 0) { nextTab ->
+                if (nextTab == 1) onSwipeRight()
+            }
             .padding(
                 horizontal = 24.dp,
                 vertical = 28.dp
