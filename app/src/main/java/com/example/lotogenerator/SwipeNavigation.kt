@@ -1,17 +1,14 @@
 package com.example.lotogenerator
 
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.composed
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 
 /**
  * Horizontal navigation for the five main tabs.
- * Horizontal drags are recognized only after horizontal touch slop, so
- * vertical scrolling in LazyColumn/verticalScroll remains available.
+ * Horizontal drags are recognized after horizontal touch slop, leaving
+ * vertical scrolling in LazyColumn and verticalScroll available.
  */
 fun Modifier.lotoTabSwipe(
     selectedTab: Int,
