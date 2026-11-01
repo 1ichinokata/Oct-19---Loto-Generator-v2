@@ -1,0 +1,15 @@
+Furan Lotto Generator v3.5
+
+Changes:
+- Daily new-version popup. Cancel suppresses it for the rest of that day.
+- Download / Update opens the latest GitHub release.
+- Language selector on Home and Settings using all locales available on the Android device.
+  Untranslated app text falls back to English.
+- Navigation state is preserved when the app is minimized/recreated.
+- Access code is displayed in Settings above access time remaining.
+- Access-expiry warning with live countdown appears above the bottom tabs when less than 3 days remain.
+- Philippine Latest Result number balls now have visible filled bubble backgrounds.
+- Existing v3.4.1 generator 1/3/5 options and server cache retained.
+- Home remains limited to the two currently supported countries and navigation storage is ready for recent-use expansion as more countries are added.
+
+Version: 3.5 (versionCode 4)

@@ -16,7 +16,7 @@ data class PhilippineLottoDraw(
 )
 
 object PhilippineLottoApi {
-    private const val TIMEOUT = 20_000
+    private const val TIMEOUT = 10_000
     private const val UA = "Mozilla/5.0"
 
     private fun historyUrl(game: PhilippineLottoGame, page: Int = 1): String {
@@ -30,18 +30,33 @@ object PhilippineLottoApi {
         return "https://en.lottolyzer.com/history/philippines/$slug/page/$page/per-page/50/summary-view"
     }
 
+    private fun homeUrl(game: PhilippineLottoGame): String {
+        val slug = when (game) {
+            PhilippineLottoGame.LOTTO_642 -> "lotto-6_slash_42"
+            PhilippineLottoGame.MEGA_645 -> "mega-lotto-6_slash_45"
+            PhilippineLottoGame.SUPER_649 -> "super-lotto-6_slash_49"
+            PhilippineLottoGame.GRAND_655 -> "grand-lotto-6_slash_55"
+            PhilippineLottoGame.ULTRA_658 -> "ultra-lotto-6_slash_58"
+        }
+        return "https://en.lottolyzer.com/home/philippines/$slug/summary-view"
+    }
+
     suspend fun fetchRecentDraws(game: PhilippineLottoGame, limit: Int = 30): List<PhilippineLottoDraw> =
         withContext(Dispatchers.IO) {
             val result = mutableListOf<PhilippineLottoDraw>()
-            for (page in 1..3) {
-                if (result.size >= limit) break
-                val html = Jsoup.connect(historyUrl(game, page))
-                    .timeout(TIMEOUT)
-                    .userAgent(UA)
-                    .get()
-                    .html()
-                result += parse(html, game)
+
+            // FAST MODE: one history request first. If it fails, use the Home
+            // summary page as one fallback instead of waiting through several pages.
+            try {
+                result += parse(LottolyzerHttp.get(historyUrl(game, 1)), game)
+            } catch (_: Exception) {
+                try {
+                    result += parse(LottolyzerHttp.get(homeUrl(game)), game)
+                } catch (_: Exception) {
+                    // Cached results are kept by the ViewModel when the Server is unavailable.
+                }
             }
+
             result.sortedByDescending { it.date }.distinctBy { it.date }.take(limit)
         }
 

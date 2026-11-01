@@ -1,6 +1,7 @@
-
 package com.example.lotogenerator
 
+import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -13,28 +14,12 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -67,6 +52,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        AppLanguageManager.applySaved(this)
 
         setContent {
             AppWithSplash()
@@ -195,7 +182,6 @@ private fun FuranSplashScreen() {
             )
     ) {
 
-        // Fixed user-approved splash artwork.
         Image(
             painter = painterResource(
                 R.drawable.furan_splash_reference
@@ -206,7 +192,6 @@ private fun FuranSplashScreen() {
             contentScale = ContentScale.Crop
         )
 
-        // Animated decorative effects only.
         Canvas(
             modifier = Modifier.fillMaxSize()
         ) {
@@ -339,6 +324,8 @@ private fun ProtectedLotoApp(
 
     val context = LocalContext.current
 
+    DailyUpdatePrompt()
+
     var activated by remember {
         mutableStateOf(false)
     }
@@ -348,18 +335,26 @@ private fun ProtectedLotoApp(
     }
 
     /*
-     * Changes every time the Activity resumes.
+     * This is separate from activated.
      *
-     * Stripe flow:
+     * A user who already has valid access can manually
+     * open AccessScreen from Settings to extend/replace
+     * their access code without losing current access.
+     */
+    var manuallyEnteringAccessCode by remember {
+        mutableStateOf(false)
+    }
+
+    var paymentResultMessage by remember {
+        mutableStateOf<String?>(null)
+    }
+
+    /*
+     * This should NOT increase on every normal resume.
      *
-     * 1. User leaves the app.
-     * 2. Stripe Checkout opens.
-     * 3. User completes payment.
-     * 4. Stripe webhook grants access.
-     * 5. User returns to the app.
-     * 6. ON_RESUME increments accessSession.
-     * 7. LaunchedEffect runs again.
-     * 8. restoreAccess() checks the new paid access.
+     * It is only increased when the app returns from
+     * Stripe/payment so normal minimizing/backgrounding
+     * does not trigger an access reload.
      */
     var accessSession by remember {
         mutableStateOf(0)
@@ -373,12 +368,40 @@ private fun ProtectedLotoApp(
         val observer =
             LifecycleEventObserver { _, event ->
 
-                if (
-                    event ==
-                    Lifecycle.Event.ON_RESUME
-                ) {
+                if (event == Lifecycle.Event.ON_RESUME) {
 
-                    accessSession++
+                    val activity =
+                        context as? Activity
+
+                    val data =
+                        activity?.intent?.data
+
+                    val paymentReturn =
+                        (
+                                data?.scheme == "https" &&
+                                        data.host ==
+                                        "1ichinokata.github.io" &&
+                                        data.path?.startsWith(
+                                            "/payment-success"
+                                        ) == true
+                                ) ||
+                                (
+                                        data?.scheme ==
+                                                "furanlotto" &&
+                                                data.host ==
+                                                "payment-cancel"
+                                        )
+
+                    /*
+                     * Only payment return causes another
+                     * access validation.
+                     *
+                     * Normal background -> foreground
+                     * does nothing here.
+                     */
+                    if (paymentReturn) {
+                        accessSession++
+                    }
                 }
             }
 
@@ -387,23 +410,14 @@ private fun ProtectedLotoApp(
         )
 
         onDispose {
+
             lifecycleOwner.lifecycle.removeObserver(
                 observer
             )
         }
     }
 
-    /*
-     * Check access:
-     *
-     * - on first startup
-     * - whenever the Activity resumes
-     * - after Settings deliberately locks access
-     *
-     * For Stripe purchases we retry restore several
-     * times because the Stripe webhook may take a
-     * moment to create/update access_codes.
-     */
+
     LaunchedEffect(accessSession) {
 
         checkingAccess = true
@@ -411,13 +425,93 @@ private fun ProtectedLotoApp(
         try {
 
             /*
-             * Give Stripe/Supabase time to finish
-             * processing the payment.
+             * If this is a Stripe return, allow a little
+             * time for the webhook/Supabase update.
              */
             if (accessSession > 0) {
                 delay(2000L)
             }
 
+            val activity =
+                context as? Activity
+
+            val returnUri =
+                activity?.intent?.data
+
+            val isPaymentSuccess =
+                returnUri?.scheme == "https" &&
+                        returnUri.host ==
+                        "1ichinokata.github.io" &&
+                        returnUri.path?.startsWith(
+                            "/payment-success"
+                        ) == true
+
+            val isPaymentCancelled =
+                returnUri?.scheme ==
+                        "furanlotto" &&
+                        returnUri.host ==
+                        "payment-cancel"
+
+
+            if (isPaymentCancelled) {
+
+                paymentResultMessage =
+                    "Purchase Cancelled"
+
+                activity?.let {
+
+                    it.intent =
+                        Intent(it.intent)
+                            .setData(null)
+                }
+            }
+
+
+            if (isPaymentSuccess) {
+
+                var purchaseRestored = false
+
+                for (attempt in 1..5) {
+
+                    val restoreResult =
+                        AccessManager.restoreAccess(
+                            context
+                        )
+
+                    if (restoreResult.success) {
+
+                        purchaseRestored = true
+                        break
+                    }
+
+                    if (attempt < 5) {
+                        delay(2000L)
+                    }
+                }
+
+                activity?.let {
+
+                    it.intent =
+                        Intent(it.intent)
+                            .setData(null)
+                }
+
+                if (purchaseRestored) {
+
+                    activated = true
+                    manuallyEnteringAccessCode = false
+
+                    paymentResultMessage =
+                        "Purchase Successful"
+
+                    return@LaunchedEffect
+
+                } else {
+
+                    paymentResultMessage =
+                        "Purchase Failed. Payment could not be verified. Please try Restore Access or contact support if you were charged."
+                }
+            }
 
 
             /*
@@ -430,9 +524,10 @@ private fun ProtectedLotoApp(
             ) {
 
                 val result =
-                    AccessManager.validateCurrentAccess(
-                        context
-                    )
+                    AccessManager
+                        .validateCurrentAccess(
+                            context
+                        )
 
                 if (result.success) {
 
@@ -444,21 +539,19 @@ private fun ProtectedLotoApp(
                 ) {
 
                     /*
-                     * Temporary connection failure.
-                     * Keep valid local access.
+                     * Keep locally valid access during
+                     * a temporary network problem.
                      */
                     activated = true
                     return@LaunchedEffect
                 }
             }
 
+
             /*
              * No valid local access.
              *
-             * Ask the server to restore paid access.
-             *
-             * Retry because the Stripe webhook can
-             * sometimes finish after the app resumes.
+             * Try restoring paid access from server.
              */
             var restored = false
 
@@ -475,15 +568,11 @@ private fun ProtectedLotoApp(
                     break
                 }
 
-                /*
-                 * Wait before trying again.
-                 *
-                 * Do not wait after the final attempt.
-                 */
                 if (attempt < 5) {
                     delay(2000L)
                 }
             }
+
 
             if (restored) {
 
@@ -491,10 +580,11 @@ private fun ProtectedLotoApp(
                 return@LaunchedEffect
             }
 
+
             /*
-             * No paid access found.
+             * No paid access.
              *
-             * Check the device's 7-day trial.
+             * Check the device's existing trial.
              */
             val trialResult =
                 AccessManager.checkTrial(
@@ -515,12 +605,14 @@ private fun ProtectedLotoApp(
         }
     }
 
+
     when {
 
         checkingAccess -> {
 
             Box(
-                modifier = Modifier.fillMaxSize(),
+                modifier =
+                    Modifier.fillMaxSize(),
                 contentAlignment =
                     Alignment.Center
             ) {
@@ -529,24 +621,36 @@ private fun ProtectedLotoApp(
             }
         }
 
-        !activated -> {
+
+        /*
+         * Show AccessScreen when:
+         *
+         * 1. User has no valid access, OR
+         * 2. User manually selected Enter Access Code
+         *    from Settings.
+         *
+         * Existing paid access remains active while
+         * manually entering an extension code.
+         */
+        !activated ||
+                manuallyEnteringAccessCode -> {
 
             AccessScreen(
                 onActivated = {
 
-                    /*
-                     * User successfully entered
-                     * an Access Key.
-                     */
                     AccessManager.setManualLock(
                         context,
                         false
                     )
 
+                    manuallyEnteringAccessCode =
+                        false
+
                     activated = true
                 }
             )
         }
+
 
         else -> {
 
@@ -558,19 +662,64 @@ private fun ProtectedLotoApp(
                 onRequireAccessCode = {
 
                     /*
-                     * Hidden Settings action.
+                     * IMPORTANT:
+                     *
+                     * Do not set activated=false.
+                     * Do not increase accessSession.
+                     * Do not enable manual_lock.
+                     *
+                     * The user still has valid access.
+                     * We are simply opening AccessScreen
+                     * so they can extend their time.
                      */
-                    AccessManager.setManualLock(
-                        context,
+                    manuallyEnteringAccessCode =
                         true
-                    )
-
-                    activated = false
-
-                    accessSession++
                 }
             )
         }
+    }
+
+
+    paymentResultMessage?.let { message ->
+
+        AlertDialog(
+            onDismissRequest = {
+                paymentResultMessage = null
+            },
+            title = {
+                Text(message)
+            },
+            text = {
+
+                Text(
+                    when {
+
+                        message ==
+                                "Purchase Successful" ->
+
+                            "Your purchase has been verified and your access has been updated."
+
+                        message ==
+                                "Purchase Cancelled" ->
+
+                            "The purchase was cancelled. No access change was made."
+
+                        else -> message
+                    }
+                )
+            },
+            confirmButton = {
+
+                TextButton(
+                    onClick = {
+                        paymentResultMessage = null
+                    }
+                ) {
+
+                    Text("OK")
+                }
+            }
+        )
     }
 }
 
@@ -582,197 +731,554 @@ private fun CombinedLotoApp(
     onRequireAccessCode: () -> Unit
 ) {
 
-    var lottery by remember {
+    var lottery by rememberSaveable {
         mutableStateOf(
             Lottery.LOTO6
         )
     }
 
-    var expanded by remember {
+    var philippineGame by rememberSaveable {
+        mutableStateOf(
+            PhilippineLottoGame.LOTTO_642
+        )
+    }
+
+    var countryExpanded by remember {
         mutableStateOf(false)
     }
 
-    var showSettings by remember {
+    var gameExpanded by remember {
         mutableStateOf(false)
     }
 
-    val name = when (lottery) {
-
-        Lottery.LOTO6 ->
-            "🇯🇵 Loto 6"
-
-        Lottery.LOTO7 ->
-            "🇯🇵 Loto 7"
-
-        Lottery.MINI_LOTO ->
-            "🇯🇵 Mini Loto"
-
-        Lottery.PHILIPPINE ->
-            "🇵🇭 Philippine Lotto"
+    var showSettings by rememberSaveable {
+        mutableStateOf(false)
     }
+
+    var showHome by rememberSaveable {
+        mutableStateOf(true)
+    }
+
+
+    val isJapan =
+        lottery != Lottery.PHILIPPINE
+
+    val countryName =
+        if (isJapan) {
+            "🇯🇵 Japan Loto"
+        } else {
+            "🇵🇭 Philippine Loto"
+        }
+
+    val gameName =
+        when (lottery) {
+
+            Lottery.LOTO6 ->
+                "Loto 6"
+
+            Lottery.LOTO7 ->
+                "Loto 7"
+
+            Lottery.MINI_LOTO ->
+                "Mini Loto"
+
+            Lottery.PHILIPPINE ->
+                philippineGame.title
+        }
+
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                MaterialTheme.colorScheme.background
+                MaterialTheme
+                    .colorScheme
+                    .background
             )
     ) {
 
-        if (showSettings) {
+        when {
 
-            SettingsScreen(
-                darkMode = darkMode,
-                onDarkModeChange =
-                    onDarkModeChange,
+            showSettings -> {
 
-                onBack = {
-                    showSettings = false
-                },
+                SettingsScreen(
+                    darkMode = darkMode,
+                    onDarkModeChange =
+                        onDarkModeChange,
 
-                onRequireAccessCode = {
+                    onBack = {
+                        showSettings = false
+                    },
 
-                    showSettings = false
+                    onRequireAccessCode = {
 
-                    onRequireAccessCode()
+                        showSettings = false
+
+                        onRequireAccessCode()
+                    }
+                )
+            }
+
+
+            showHome -> {
+
+                LottoHomeScreen(
+                    onJapan = {
+
+                        lottery =
+                            Lottery.LOTO6
+
+                        showHome = false
+                    },
+
+                    onPhilippines = {
+
+                        lottery =
+                            Lottery.PHILIPPINE
+
+                        philippineGame =
+                            PhilippineLottoGame
+                                .LOTTO_642
+
+                        showHome = false
+                    },
+
+                    onSettings = {
+                        showSettings = true
+                    }
+                )
+            }
+
+
+            else -> {
+
+                when (lottery) {
+
+                    Lottery.LOTO6 ->
+
+                        Loto6App(
+                            onHome = {
+                                showHome = true
+                            }
+                        )
+
+                    Lottery.LOTO7 ->
+
+                        Loto7App(
+                            onHome = {
+                                showHome = true
+                            }
+                        )
+
+                    Lottery.MINI_LOTO ->
+
+                        MiniLotoApp(
+                            onHome = {
+                                showHome = true
+                            }
+                        )
+
+                    Lottery.PHILIPPINE ->
+
+                        PhilippineLottoApp(
+                            selectedGame =
+                                philippineGame,
+
+                            onHome = {
+                                showHome = true
+                            }
+                        )
                 }
-            )
 
-        } else {
 
-            when (lottery) {
+                /*
+                 * Country selector
+                 */
+                Box(
+                    modifier =
+                        Modifier.padding(
+                            start = 12.dp,
+                            top = 16.dp
+                        )
+                ) {
 
-                Lottery.LOTO6 -> {
+                    OutlinedButton(
+                        onClick = {
+                            countryExpanded = true
+                        }
+                    ) {
 
-                    Loto6App()
+                        Text(
+                            "$countryName ▼"
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded =
+                            countryExpanded,
+
+                        onDismissRequest = {
+                            countryExpanded =
+                                false
+                        }
+                    ) {
+
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "🇯🇵 Japan Loto"
+                                )
+                            },
+
+                            onClick = {
+
+                                lottery =
+                                    Lottery.LOTO6
+
+                                countryExpanded =
+                                    false
+                            }
+                        )
+
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "🇵🇭 Philippine Loto"
+                                )
+                            },
+
+                            onClick = {
+
+                                lottery =
+                                    Lottery.PHILIPPINE
+
+                                countryExpanded =
+                                    false
+                            }
+                        )
+                    }
                 }
 
-                Lottery.LOTO7 -> {
 
-                    Loto7App()
+                /*
+                 * Game selector
+                 */
+                Box(
+                    modifier = Modifier
+                        .align(
+                            Alignment.TopEnd
+                        )
+                        .padding(
+                            top = 16.dp,
+                            end = 56.dp
+                        )
+                ) {
+
+                    OutlinedButton(
+                        onClick = {
+                            gameExpanded = true
+                        }
+                    ) {
+
+                        Text(
+                            "$gameName ▼"
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded =
+                            gameExpanded,
+
+                        onDismissRequest = {
+                            gameExpanded =
+                                false
+                        }
+                    ) {
+
+                        if (isJapan) {
+
+                            DropdownMenuItem(
+                                text = {
+                                    Text("Loto 6")
+                                },
+                                onClick = {
+
+                                    lottery =
+                                        Lottery.LOTO6
+
+                                    gameExpanded =
+                                        false
+                                }
+                            )
+
+                            DropdownMenuItem(
+                                text = {
+                                    Text("Loto 7")
+                                },
+                                onClick = {
+
+                                    lottery =
+                                        Lottery.LOTO7
+
+                                    gameExpanded =
+                                        false
+                                }
+                            )
+
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        "Mini Loto"
+                                    )
+                                },
+                                onClick = {
+
+                                    lottery =
+                                        Lottery.MINI_LOTO
+
+                                    gameExpanded =
+                                        false
+                                }
+                            )
+
+                        } else {
+
+                            PhilippineLottoGame
+                                .entries
+                                .forEach { game ->
+
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                game.title
+                                            )
+                                        },
+
+                                        onClick = {
+
+                                            philippineGame =
+                                                game
+
+                                            gameExpanded =
+                                                false
+                                        }
+                                    )
+                                }
+                        }
+                    }
                 }
 
-                Lottery.MINI_LOTO -> {
 
-                    MiniLotoApp()
+                /*
+                 * Settings button
+                 */
+                IconButton(
+                    onClick = {
+                        showSettings = true
+                    },
+
+                    modifier = Modifier
+                        .align(
+                            Alignment.TopEnd
+                        )
+                        .padding(
+                            top = 16.dp,
+                            end = 8.dp
+                        )
+                ) {
+
+                    Icon(
+                        imageVector =
+                            Icons.Default.Settings,
+
+                        contentDescription =
+                            "Settings",
+
+                        tint =
+                            MaterialTheme
+                                .colorScheme
+                                .onBackground
+                    )
                 }
+            }
+        }
+    }
+}
 
-                Lottery.PHILIPPINE -> {
 
-                    PhilippineLottoApp()
+@Composable
+private fun LottoHomeScreen(
+    onJapan: () -> Unit,
+    onPhilippines: () -> Unit,
+    onSettings: () -> Unit
+) {
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(
+                horizontal = 24.dp,
+                vertical = 28.dp
+            ),
+        horizontalAlignment =
+            Alignment.CenterHorizontally,
+        verticalArrangement =
+            Arrangement.Center
+    ) {
+
+        Text(
+            text =
+                "Furan Lotto Generator",
+            style =
+                MaterialTheme
+                    .typography
+                    .headlineMedium
+        )
+
+        Spacer(
+            Modifier.height(8.dp)
+        )
+
+        Text(
+            text =
+                "Choose Your Lotto",
+            style =
+                MaterialTheme
+                    .typography
+                    .titleMedium,
+            color =
+                MaterialTheme
+                    .colorScheme
+                    .onSurfaceVariant
+        )
+
+        Spacer(
+            Modifier.height(28.dp)
+        )
+
+
+        Card(
+            modifier =
+                Modifier.fillMaxWidth()
+        ) {
+
+            Column(
+                Modifier.padding(20.dp)
+            ) {
+
+                Text(
+                    "🇯🇵  JAPAN LOTO",
+                    style =
+                        MaterialTheme
+                            .typography
+                            .titleLarge
+                )
+
+                Spacer(
+                    Modifier.height(6.dp)
+                )
+
+                Text(
+                    "Loto 6 • Loto 7 • Mini Loto"
+                )
+
+                Spacer(
+                    Modifier.height(14.dp)
+                )
+
+                Button(
+                    onClick = onJapan,
+                    modifier =
+                        Modifier.fillMaxWidth()
+                ) {
+
+                    Text(
+                        "Open Japan Loto"
+                    )
                 }
             }
         }
 
-        if (!showSettings) {
 
-            Box(
-                modifier = Modifier
-                    .padding(
-                        start = 16.dp,
-                        top = 16.dp
-                    )
+        Spacer(
+            Modifier.height(16.dp)
+        )
+
+
+        Card(
+            modifier =
+                Modifier.fillMaxWidth()
+        ) {
+
+            Column(
+                Modifier.padding(20.dp)
             ) {
 
-                OutlinedButton(
-                    onClick = {
-                        expanded = true
-                    }
+                Text(
+                    "🇵🇭  PHILIPPINE LOTTO",
+                    style =
+                        MaterialTheme
+                            .typography
+                            .titleLarge
+                )
+
+                Spacer(
+                    Modifier.height(6.dp)
+                )
+
+                Text(
+                    "6/42 • 6/45 • 6/49 • 6/55 • 6/58"
+                )
+
+                Spacer(
+                    Modifier.height(14.dp)
+                )
+
+                Button(
+                    onClick =
+                        onPhilippines,
+                    modifier =
+                        Modifier.fillMaxWidth()
                 ) {
 
                     Text(
-                        "$name ▼"
-                    )
-                }
-
-                DropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = {
-                        expanded = false
-                    }
-                ) {
-
-                    DropdownMenuItem(
-                        text = {
-                            Text("🇯🇵 Loto 6")
-                        },
-                        onClick = {
-
-                            lottery =
-                                Lottery.LOTO6
-
-                            expanded = false
-                        }
-                    )
-
-                    DropdownMenuItem(
-                        text = {
-                            Text("🇯🇵 Loto 7")
-                        },
-                        onClick = {
-
-                            lottery =
-                                Lottery.LOTO7
-
-                            expanded = false
-                        }
-                    )
-
-                    DropdownMenuItem(
-                        text = {
-                            Text("🇯🇵 Mini Loto")
-                        },
-                        onClick = {
-
-                            lottery =
-                                Lottery.MINI_LOTO
-
-                            expanded = false
-                        }
-                    )
-
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                "🇵🇭 Philippines — " +
-                                        "6/42 • 6/45 • 6/49 • " +
-                                        "6/55 • 6/58"
-                            )
-                        },
-                        onClick = {
-
-                            lottery =
-                                Lottery.PHILIPPINE
-
-                            expanded = false
-                        }
+                        "Open Philippine Lotto"
                     )
                 }
             }
+        }
 
-            IconButton(
-                onClick = {
-                    showSettings = true
-                },
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(
-                        top = 16.dp,
-                        end = 12.dp
-                    )
-            ) {
 
-                Icon(
-                    imageVector =
-                        Icons.Default.Settings,
-                    contentDescription =
-                        "Settings",
-                    tint =
-                        MaterialTheme
-                            .colorScheme
-                            .onBackground
-                )
-            }
+        Spacer(
+            Modifier.height(20.dp)
+        )
+
+
+        LanguagePickerButton(
+            modifier =
+                Modifier.fillMaxWidth()
+        )
+
+
+        Spacer(
+            Modifier.height(10.dp)
+        )
+
+
+        OutlinedButton(
+            onClick = onSettings
+        ) {
+
+            Icon(
+                Icons.Default.Settings,
+                contentDescription = null
+            )
+
+            Spacer(
+                Modifier.width(8.dp)
+            )
+
+            Text("Settings")
         }
     }
 }

@@ -28,6 +28,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.Color
 
 @Composable
 fun SettingsScreen(
@@ -37,6 +40,15 @@ fun SettingsScreen(
     onRequireAccessCode: () -> Unit
 ) {
     val context = LocalContext.current
+
+    /*
+     * Increment this after successful activation so
+     * Settings immediately refreshes the displayed
+     * access state/countdown.
+     */
+    var accessRefreshKey by remember {
+        mutableIntStateOf(0)
+    }
 
     val prefs = remember {
         context.getSharedPreferences(
@@ -58,10 +70,14 @@ fun SettingsScreen(
     }
 
     val permanent =
-        AccessManager.isGodMode(context)
+        remember(accessRefreshKey) {
+            AccessManager.isGodMode(context)
+        }
 
     val paidAccess =
-        AccessManager.isActivated(context)
+        remember(accessRefreshKey) {
+            AccessManager.isActivated(context)
+        }
 
     val trialActive =
         !paidAccess &&
@@ -76,6 +92,28 @@ fun SettingsScreen(
     }
 
     val scope = rememberCoroutineScope()
+
+    var showAccessCodeDialog by remember {
+        mutableStateOf(false)
+    }
+
+    var newAccessCode by remember {
+        mutableStateOf("")
+    }
+
+    var submittingAccessCode by remember {
+        mutableStateOf(false)
+    }
+
+    var accessCodeError by remember {
+        mutableStateOf<String?>(null)
+    }
+
+    var accessCodeSuccess by remember {
+        mutableStateOf<String?>(null)
+    }
+
+
 
     fun startPurchase(plan: String) {
 
@@ -504,6 +542,7 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement =
                 Arrangement.spacedBy(16.dp)
@@ -589,6 +628,26 @@ fun SettingsScreen(
                             }
                         )
                     }
+                }
+            }
+
+            // -----------------------------------------
+            // LANGUAGE
+            // -----------------------------------------
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(18.dp)) {
+                    Text(
+                        "Language",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    LanguagePickerButton(modifier = Modifier.fillMaxWidth())
+                    Text(
+                        "Languages supported by this Android device are listed. Text without a translation falls back to English.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
@@ -770,6 +829,20 @@ fun SettingsScreen(
                         Modifier.height(10.dp)
                     )
 
+                    AccessManager.getStoredAccessCode(context)?.let { code ->
+                        Text(
+                            "Access Code",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            code,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(10.dp))
+                    }
+
                     when {
 
                         // ---------------------------------
@@ -863,21 +936,12 @@ fun SettingsScreen(
                                     minutes,
                                     seconds
                                 ),
-                                style =
-                                    MaterialTheme.typography
-                                        .headlineSmall,
-                                fontWeight =
-                                    FontWeight.Bold,
-                                color =
-                                    if (
-                                        trialRemainingMillis >
-                                        0L
-                                    )
-                                        MaterialTheme.colorScheme
-                                            .primary
-                                    else
-                                        MaterialTheme.colorScheme
-                                            .error
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (trialRemainingMillis < 3L * 24L * 60L * 60L * 1000L)
+                                    Color.Red
+                                else
+                                    MaterialTheme.colorScheme.primary
                             )
 
                             Text(
@@ -966,21 +1030,12 @@ fun SettingsScreen(
                                     minutes,
                                     seconds
                                 ),
-                                style =
-                                    MaterialTheme.typography
-                                        .headlineSmall,
-                                fontWeight =
-                                    FontWeight.Bold,
-                                color =
-                                    if (
-                                        remainingMillis >
-                                        0L
-                                    )
-                                        MaterialTheme.colorScheme
-                                            .primary
-                                    else
-                                        MaterialTheme.colorScheme
-                                            .error
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (remainingMillis < 3L * 24L * 60L * 60L * 1000L)
+                                    Color.Red
+                                else
+                                    MaterialTheme.colorScheme.primary
                             )
 
                             Text(
@@ -995,6 +1050,29 @@ fun SettingsScreen(
                                     MaterialTheme.typography
                                         .bodySmall
                             )
+                        }
+                    }
+
+                    // -----------------------------------------
+                    // ENTER ACCESS CODE
+                    // -----------------------------------------
+
+                    val accessTimeForCode = if (trialActive) trialRemainingMillis else remainingMillis
+                    val showEnterAccessCode = !permanent
+
+
+                    if (showEnterAccessCode) {
+                        Spacer(Modifier.height(16.dp))
+                        OutlinedButton(
+                            onClick = {
+                                newAccessCode = ""
+                                accessCodeError = null
+                                accessCodeSuccess = null
+                                showAccessCodeDialog = true
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Enter Access Code")
                         }
                     }
 
@@ -1137,5 +1215,246 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+    if (showAccessCodeDialog) {
+
+        AlertDialog(
+            onDismissRequest = {
+                if (!submittingAccessCode) {
+                    showAccessCodeDialog = false
+                    newAccessCode = ""
+                    accessCodeError = null
+                }
+            },
+
+            title = {
+                Text("Enter Access Code")
+            },
+
+            text = {
+
+                Column {
+
+                    Text(
+                        "Enter a new access code to extend your current access or activate Permanent Access."
+                    )
+
+                    Spacer(
+                        Modifier.height(16.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = newAccessCode,
+                        onValueChange = {
+                            newAccessCode =
+                                it.uppercase()
+
+                            accessCodeError = null
+                        },
+                        enabled = !submittingAccessCode,
+                        singleLine = true,
+                        label = {
+                            Text("Access Code")
+                        },
+                        placeholder = {
+                            Text("LOTO-XXXXX-XXXX")
+                        },
+                        modifier =
+                            Modifier.fillMaxWidth()
+                    )
+
+                    if (accessCodeError != null) {
+
+                        Spacer(
+                            Modifier.height(8.dp)
+                        )
+
+                        Text(
+                            text =
+                                accessCodeError!!,
+                            color =
+                                MaterialTheme
+                                    .colorScheme
+                                    .error,
+                            style =
+                                MaterialTheme
+                                    .typography
+                                    .bodySmall
+                        )
+                    }
+
+                    if (submittingAccessCode) {
+
+                        Spacer(
+                            Modifier.height(16.dp)
+                        )
+
+                        Row(
+                            verticalAlignment =
+                                Alignment.CenterVertically
+                        ) {
+
+                            CircularProgressIndicator(
+                                modifier =
+                                    Modifier.size(20.dp),
+                                strokeWidth = 2.dp
+                            )
+
+                            Spacer(
+                                Modifier.width(10.dp)
+                            )
+
+                            Text(
+                                "Checking access code..."
+                            )
+                        }
+                    }
+                }
+            },
+
+            confirmButton = {
+
+                Button(
+                    enabled =
+                        !submittingAccessCode &&
+                                newAccessCode
+                                    .trim()
+                                    .isNotEmpty(),
+
+                    onClick = {
+
+                        if (submittingAccessCode) {
+                            return@Button
+                        }
+
+                        submittingAccessCode = true
+                        accessCodeError = null
+
+                        scope.launch {
+
+                            try {
+
+                                val result =
+                                    AccessManager.activate(
+                                        context = context,
+                                        code =
+                                            newAccessCode
+                                                .trim()
+                                    )
+
+                                if (result.success) {
+
+                                    /*
+                                     * Refresh Settings values immediately.
+                                     */
+                                    remainingMillis =
+                                        AccessManager
+                                            .getRemainingTime(
+                                                context
+                                            )
+
+                                    trialRemainingMillis =
+                                        AccessManager
+                                            .getTrialRemainingTime(
+                                                context
+                                            )
+
+                                    accessRefreshKey++
+
+                                    accessCodeSuccess =
+                                        if (
+                                            result.permanent ||
+                                            AccessManager
+                                                .isGodMode(
+                                                    context
+                                                )
+                                        ) {
+
+                                            "Permanent Access activated successfully."
+
+                                        } else {
+
+                                            "Access updated successfully."
+                                        }
+
+                                    showAccessCodeDialog =
+                                        false
+
+                                    newAccessCode = ""
+
+                                } else {
+
+                                    accessCodeError =
+                                        result.message
+                                }
+
+                            } catch (e: Exception) {
+
+                                accessCodeError =
+                                    e.message
+                                        ?: "Unable to validate access code."
+
+                            } finally {
+
+                                submittingAccessCode =
+                                    false
+                            }
+                        }
+                    }
+                ) {
+
+                    Text("Submit")
+                }
+            },
+
+            dismissButton = {
+
+                TextButton(
+                    enabled =
+                        !submittingAccessCode,
+
+                    onClick = {
+
+                        showAccessCodeDialog =
+                            false
+
+                        newAccessCode = ""
+
+                        accessCodeError = null
+                    }
+                ) {
+
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+    accessCodeSuccess?.let { message ->
+
+        AlertDialog(
+            onDismissRequest = {
+                accessCodeSuccess = null
+            },
+
+            title = {
+                Text("Access Updated")
+            },
+
+            text = {
+                Text(message)
+            },
+
+            confirmButton = {
+
+                TextButton(
+                    onClick = {
+                        accessCodeSuccess = null
+                    }
+                ) {
+
+                    Text("OK")
+                }
+            }
+        )
     }
 }

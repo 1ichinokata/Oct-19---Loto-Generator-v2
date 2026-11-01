@@ -229,6 +229,12 @@ object AccessManager {
     private const val TRIAL_EXPIRES_AT =
         "trial_expires_at"
 
+    // Permanent local eligibility markers. These are intentionally never cleared
+    // when access expires. They prevent an expired trial/paid period from
+    // silently creating another 7-day trial on the same app installation.
+    private const val TRIAL_EVER_ISSUED = "trial_ever_issued"
+    private const val PAID_ACCESS_EVER_USED = "paid_access_ever_used"
+
     /*
      * Communicate with Supabase.
      */
@@ -335,9 +341,23 @@ object AccessManager {
                         if (!success) {
 
                             /*
-                             * Remove local access.
+                             * IMPORTANT:
+                             *
+                             * Do not erase existing valid access when the
+                             * user is merely trying a new access code.
+                             *
+                             * Example:
+                             * User has 5 paid days remaining and accidentally
+                             * types the wrong renewal code. Their existing
+                             * 5 days must remain untouched.
+                             *
+                             * Validation of the CURRENT stored code may clear
+                             * expired/invalid local access, but activation of
+                             * a NEW code must never destroy existing access.
                              */
-                            clearAccess(context)
+                            if (action == "validate") {
+                                clearAccess(context)
+                            }
 
                             return@withContext ActivationResult(
                                 success = false,
@@ -382,8 +402,10 @@ object AccessManager {
                                 )
                                 .putString(
                                     ACCESS_CODE,
-                                    cleanCode
+                                    restoredCode
                                 )
+                                .putBoolean(PAID_ACCESS_EVER_USED, true)
+                                .putBoolean(TRIAL_EVER_ISSUED, true)
                                 .remove(EXPIRES_AT)
                                 .apply()
 
@@ -399,8 +421,16 @@ object AccessManager {
                         }
 
                         /*
-                         * Normal access.
+                         * Normal access. Never downgrade existing Permanent Access.
                          */
+                        if (isGodMode(context)) {
+                            return@withContext ActivationResult(
+                                success = true,
+                                permanent = true,
+                                message = "Permanent access is already active."
+                            )
+                        }
+
                         val expiresAtString =
                             result.optString(
                                 "expires_at",
@@ -429,16 +459,19 @@ object AccessManager {
                                 }
                             }
 
-                        if (
-                            expiresAtMillis <= 0L
-                        ) {
+                        if (expiresAtMillis <= 0L) {
 
-                            clearAccess(context)
+                            /*
+                             * Do not destroy existing access because a newly
+                             * entered extension code returned bad data.
+                             */
+                            if (action == "validate") {
+                                clearAccess(context)
+                            }
 
                             return@withContext ActivationResult(
                                 success = false,
-                                message =
-                                    "Invalid expiration date."
+                                message = "Invalid expiration date."
                             )
                         }
 
@@ -470,6 +503,8 @@ object AccessManager {
                                 EXPIRES_AT,
                                 expiresAtMillis
                             )
+                            .putBoolean(PAID_ACCESS_EVER_USED, true)
+                            .putBoolean(TRIAL_EVER_ISSUED, true)
                             .apply()
 
 // Paid access replaces the trial.
@@ -529,6 +564,14 @@ object AccessManager {
             .apply()
     }
 
+
+
+    fun getStoredAccessCode(context: Context): String? {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(ACCESS_CODE, null)
+            ?.takeIf { it.isNotBlank() }
+    }
+
     /*
      * Remaining access time.
      */
@@ -583,6 +626,14 @@ object AccessManager {
     ): TrialResult {
 
         return withContext(Dispatchers.IO) {
+
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            if (prefs.getBoolean(PAID_ACCESS_EVER_USED, false)) {
+                return@withContext TrialResult(false, expired = true, message = "Trial is unavailable after paid access has been used.")
+            }
+            if (prefs.getBoolean(TRIAL_EVER_ISSUED, false) && !isTrialActive(context)) {
+                return@withContext TrialResult(false, expired = true, message = "The one-time trial has expired.")
+            }
 
             try {
                 val deviceId = getDeviceId(context)
@@ -663,6 +714,7 @@ object AccessManager {
                                         TRIAL_EXPIRES_AT,
                                         0L
                                     )
+                                    .putBoolean(TRIAL_EVER_ISSUED, true)
                                     .apply()
                             }
 
@@ -725,6 +777,7 @@ object AccessManager {
                                 TRIAL_EXPIRES_AT,
                                 expiresAtMillis
                             )
+                            .putBoolean(TRIAL_EVER_ISSUED, true)
                             .apply()
 
                         TrialResult(

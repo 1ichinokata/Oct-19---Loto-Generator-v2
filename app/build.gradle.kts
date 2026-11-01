@@ -23,8 +23,8 @@ android {
         applicationId = "com.example.lotogenerator"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "2.0"
+        versionCode = 7
+        versionName = "4.0"
     }
 
     signingConfigs {

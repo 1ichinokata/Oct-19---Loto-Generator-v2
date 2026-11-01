@@ -1,0 +1,14 @@
+Furan Loto Generator v3.6
+
+Changes requested after v3.5:
+- Resume state: selected country/game/tab is persisted. Returning to the app does not automatically refresh cached lottery data.
+- Japan and Philippine cached history is shown immediately; Server refresh remains available where intended.
+- Trial is one-time per retained installation state. When it expires it cannot restart itself.
+- Once paid access has been used, the local trial is permanently disabled; paid expiry does not fall back to a new trial.
+- Philippine Generator: removed the extra Server status/refresh row below Generate combinations.
+- Philippine Frequency: redesigned to match Japan Loto 6 (number bubble, count / 10, progress bar).
+- Philippine Latest Result keeps number bubbles.
+- Existing v3.5 update prompt, language selector, access-code display, expiry warning, server cache, and 1/3/5 generation options are retained.
+
+Security note:
+The app now enforces one-time trial/paid-trial lockout in retained local state and still asks the existing Supabase access endpoint for trial eligibility. Preventing a reinstall/data-clear or a fully spoofed device identity from obtaining a new trial requires the Supabase validate-access-code backend to enforce a stable account/device policy; an Android client cannot make that guarantee by itself.

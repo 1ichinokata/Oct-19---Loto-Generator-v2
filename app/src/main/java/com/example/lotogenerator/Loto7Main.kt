@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Refresh
@@ -44,6 +45,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -61,6 +63,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 
@@ -117,7 +120,10 @@ enum class Loto7Method(
     BALANCED("Balanced"),
     FREQUENCY("Frequency"),
     HOT("Hot"),
-    COLD("Cold")
+    COLD("Cold"),
+    BALANCED_FREQUENCY("Balanced + Frequency"),
+    BALANCED_HOT("Balanced + Hot"),
+    BALANCED_COLD("Balanced + Cold")
 }
 
 
@@ -489,6 +495,42 @@ class Loto7Engine {
     }
 
 
+    fun generateBalancedFrequency(
+        pool: List<Int>, frequency: Map<Int, Int>, oddEven: Loto7OddEvenFilter, lowHigh: Loto7LowHighFilter
+    ): List<Int> = generateBalancedWeighted(pool, frequency, oddEven, lowHigh, "frequency")
+
+    fun generateBalancedHot(
+        pool: List<Int>, frequency: Map<Int, Int>, oddEven: Loto7OddEvenFilter, lowHigh: Loto7LowHighFilter
+    ): List<Int> = generateBalancedWeighted(pool, frequency, oddEven, lowHigh, "hot")
+
+    fun generateBalancedCold(
+        pool: List<Int>, frequency: Map<Int, Int>, oddEven: Loto7OddEvenFilter, lowHigh: Loto7LowHighFilter
+    ): List<Int> = generateBalancedWeighted(pool, frequency, oddEven, lowHigh, "cold")
+
+    private fun generateBalancedWeighted(
+        pool: List<Int>, frequency: Map<Int, Int>, oddEven: Loto7OddEvenFilter, lowHigh: Loto7LowHighFilter, style: String
+    ): List<Int> {
+        if (pool.size < 7) return emptyList()
+        val maxFrequency = pool.maxOfOrNull { frequency[it] ?: 0 } ?: 0
+        val weightedPool = ArrayList<Int>()
+        for (number in pool.distinct()) {
+            val count = frequency[number] ?: 0
+            val weight = when (style) {
+                "hot" -> ((count + 1) * (count + 1)).coerceAtMost(100)
+                "cold" -> (maxFrequency - count + 1).coerceAtLeast(1)
+                else -> (count + 1).coerceAtMost(20)
+            }
+            repeat(weight) { weightedPool.add(number) }
+        }
+        repeat(5000) {
+            val numbers = weightedPool.shuffled().distinct().take(7).sorted()
+            if (numbers.size == 7 && matchesOddEven(numbers, oddEven) &&
+                matchesLowHigh(numbers, lowHigh) && hasGoodBalance(numbers)) return numbers
+        }
+        return generateBalanced(pool, oddEven, lowHigh)
+    }
+
+
     private fun hasGoodBalance(
         numbers: List<Int>
     ): Boolean {
@@ -591,6 +633,9 @@ class Loto7ViewModel(
         _status
 
 
+    private val _updateAvailable = MutableStateFlow(false)
+    val updateAvailable: StateFlow<Boolean> = _updateAvailable
+
     private val _isUpdating =
         MutableStateFlow(false)
 
@@ -601,6 +646,9 @@ class Loto7ViewModel(
 
     private val favoriteStore =
         FavoriteStore(application)
+
+    private val historyCache =
+        Loto7HistoryCache(application)
 
 
     private val _favorites =
@@ -709,7 +757,17 @@ class Loto7ViewModel(
 
 
     init {
-        updateFromLottolyzer()
+        loadSavedHistory()
+        if (_history.value.isEmpty()) updateFromLottolyzer()
+        else checkForNewResults()
+    }
+
+    private fun loadSavedHistory() {
+        val saved = historyCache.load().sortedByDescending { it.drawNumber }
+        if (saved.isEmpty()) return
+        _history.value = saved
+        _latestDraw.value = saved.first()
+        _status.value = "Saved results loaded"
     }
 
 
@@ -802,7 +860,7 @@ class Loto7ViewModel(
     }
 
 
-    fun generate() {
+    fun generate(count: Int = 5) {
 
         val analysisDraws =
             getAnalysisDraws()
@@ -884,7 +942,7 @@ class Loto7ViewModel(
 
 
         while (
-            result.size < 10 &&
+            result.size < count &&
             attempts < 10000
         ) {
 
@@ -931,6 +989,15 @@ class Loto7ViewModel(
                             oddEven,
                             lowHigh
                         )
+
+                    Loto7Method.BALANCED_FREQUENCY ->
+                        engine.generateBalancedFrequency(generationPool, frequency, oddEven, lowHigh)
+
+                    Loto7Method.BALANCED_HOT ->
+                        engine.generateBalancedHot(generationPool, frequency, oddEven, lowHigh)
+
+                    Loto7Method.BALANCED_COLD ->
+                        engine.generateBalancedCold(generationPool, frequency, oddEven, lowHigh)
                 }
 
 
@@ -1096,75 +1163,75 @@ class Loto7ViewModel(
     }
 
 
-    fun updateFromLottolyzer() {
-
-        if (_isUpdating.value) {
-            return
-        }
-
+    fun checkForNewResults() {
         viewModelScope.launch {
-
-            _isUpdating.value =
-                true
-
-            _status.value =
-                "Connecting to Lottolyzer......"
-
             try {
-
-                val api =
-                    Loto7LottolyzerApi(
-                        getApplication<Application>()
-                    )
-
-                val draws =
-                    api.fetchRecentDraws(30)
-
-                if (draws.isEmpty()) {
-
-                    _status.value =
-                        "Lottolyzer page loaded, but no Loto 7 results could be read."
-
-                    return@launch
-                }
-
-                val sorted =
-                    draws.sortedByDescending {
-                        it.drawNumber
-                    }
-
-                val latest =
-                    sorted[0]
-
-                _history.value =
-                    sorted
-
-                _latestDraw.value =
-                    latest
-
-                _status.value =
-                    "Ready - tap Generate 10 Combinations"
-
-            } catch (error: Exception) {
-
-                _status.value =
-                    "Lottolyzer update failed: ${
-                        error.message
-                            ?: "network or parsing error"
-                    }"
-
-            } finally {
-
-                _isUpdating.value =
-                    false
+                val remote = Loto7LottolyzerApi(getApplication<Application>()).fetchRecentDraws(30)
+                val localLatest = _latestDraw.value?.drawNumber
+                val remoteLatest = remote.firstOrNull()?.drawNumber
+                _updateAvailable.value =
+                    localLatest != null && remoteLatest != null && remoteLatest > localLatest
+            } catch (_: Exception) {
+                _updateAvailable.value = false
             }
         }
     }
-}
+
+    fun dismissUpdatePrompt() {
+        _updateAvailable.value = false
+    }
+
+    fun updateFromLottolyzer() {
+        _updateAvailable.value = false
+        if (_isUpdating.value) return
+
+        viewModelScope.launch {
+            _isUpdating.value = true
+            _status.value = "Updating from Server..."
+
+            try {
+                val api = Loto7LottolyzerApi(getApplication<Application>())
+                val draws = api.fetchRecentDraws(30)
+
+                if (draws.isEmpty()) {
+                    _status.value = if (_history.value.isNotEmpty()) {
+                        "No results received from Server — showing saved results"
+                    } else {
+                        "No results received from Server"
+                    }
+                    return@launch
+                }
+
+                val sorted = draws.sortedByDescending { it.drawNumber }.distinctBy { it.drawNumber }
+                if (sorted.isEmpty()) {
+                    _status.value = if (_history.value.isNotEmpty()) {
+                        "No results received from Server — showing saved results"
+                    } else {
+                        "No results received from Server"
+                    }
+                    return@launch
+                }
+
+                val latest = sorted.first()
+                _history.value = sorted
+                _latestDraw.value = latest
+                historyCache.save(sorted)
+                _status.value = "Updated from Server: 第${latest.drawNumber}回"
+            } catch (_: Exception) {
+                _status.value = if (_history.value.isNotEmpty()) {
+                    "Server temporarily unavailable — showing saved results"
+                } else {
+                    "Server update failed"
+                }
+            } finally {
+                _isUpdating.value = false
+            }
+        }
+    }}
 
 
 @Composable
-fun Loto7App() {
+fun Loto7App(onHome: () -> Unit = {}) {
 
     val vm:
             Loto7ViewModel =
@@ -1226,6 +1293,25 @@ fun Loto7App() {
 
     val isUpdating by
     vm.isUpdating.collectAsState()
+    val updateAvailable by vm.updateAvailable.collectAsState()
+
+    if (updateAvailable) {
+        AlertDialog(
+            onDismissRequest = vm::dismissUpdatePrompt,
+            title = { Text("New Results Available") },
+            text = { Text("The saved results are behind the latest Server results.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.dismissUpdatePrompt()
+                    vm.updateFromLottolyzer()
+                }) { Text("Update Results") }
+            },
+            dismissButton = {
+                TextButton(onClick = vm::dismissUpdatePrompt) { Text("Later") }
+            }
+        )
+    }
+
 
     val favorites by
     vm.favorites.collectAsState()
@@ -1292,6 +1378,7 @@ fun Loto7App() {
         ) {
 
             Loto7Scaffold(
+                onHome = onHome,
                 darkMode = darkMode,
 
                 onDarkModeChange = {
@@ -1329,8 +1416,8 @@ fun Loto7App() {
                     vm.updateFromLottolyzer()
                 },
 
-                onGenerate = {
-                    vm.generate()
+                onGenerate = { count ->
+                    vm.generate(count)
                 },
 
                 onClear = {
@@ -1365,6 +1452,7 @@ fun Loto7App() {
 
 @Composable
 fun Loto7Scaffold(
+    onHome: () -> Unit = {},
     darkMode: Boolean,
     onDarkModeChange: (Boolean) -> Unit,
     latestDraw: Loto7Draw?,
@@ -1377,7 +1465,7 @@ fun Loto7Scaffold(
     isUpdating: Boolean,
     favorites: List<FavoriteItem>,
     onUpdate: () -> Unit,
-    onGenerate: () -> Unit,
+    onGenerate: (Int) -> Unit,
     onClear: () -> Unit,
     onOddEvenChange: (Loto7OddEvenFilter) -> Unit,
     onLowHighChange: (Loto7LowHighFilter) -> Unit,
@@ -1387,11 +1475,12 @@ fun Loto7Scaffold(
 ) {
 
     var selectedTab by remember {
-        mutableStateOf(0)
+        mutableStateOf(1)
     }
 
     val tabs =
         listOf(
+            "Home",
             "Generator",
             "History",
             "Frequency",
@@ -1400,6 +1489,7 @@ fun Loto7Scaffold(
 
     val icons =
         listOf(
+            Icons.Default.Home,
             Icons.Default.Casino,
             Icons.Default.History,
             Icons.Default.BarChart,
@@ -1449,7 +1539,9 @@ fun Loto7Scaffold(
 
         bottomBar = {
 
-            NavigationBar {
+            Column {
+                AccessExpiryWarning()
+                NavigationBar {
 
                 tabs.forEachIndexed {
                         index,
@@ -1461,8 +1553,7 @@ fun Loto7Scaffold(
                                     index,
 
                         onClick = {
-                            selectedTab =
-                                index
+                            if (index == 0) onHome() else selectedTab = index
                         },
 
                         icon = {
@@ -1479,6 +1570,7 @@ fun Loto7Scaffold(
                         }
                     )
                 }
+            }
             }
         }
 
@@ -1507,7 +1599,7 @@ fun Loto7Scaffold(
 
             when (selectedTab) {
 
-                0 ->
+                1 ->
 
                     Loto7GeneratorScreen(
                     history = history,
@@ -1549,7 +1641,7 @@ fun Loto7Scaffold(
                     )
 
 
-                1 ->
+                2 ->
 
                     Loto7HistoryScreen(
                         history =
@@ -1557,7 +1649,7 @@ fun Loto7Scaffold(
                     )
 
 
-                2 ->
+                3 ->
 
                     Loto7FrequencyScreen(
                         history =
@@ -1565,7 +1657,7 @@ fun Loto7Scaffold(
                     )
 
 
-                3 ->
+                4 ->
 
                     FavoriteListScreen(
                         lotteryName =
@@ -1584,6 +1676,8 @@ fun Loto7Scaffold(
                             latestDraw
                                 ?.drawNumber
                                 ?: 0,
+                        historyDrawNumbers = history.associate { it.drawNumber to it.numbers.toSet() },
+                        historyDrawBonuses = history.associate { it.drawNumber to it.bonusNumbers.toSet() },
 
                         onRemove = { item ->
 
@@ -1655,7 +1749,7 @@ fun Loto7LatestResultCard(
                     containerColor =
                         MaterialTheme
                             .colorScheme
-                            .primaryContainer
+                            .tertiaryContainer
                 )
     ) {
 
@@ -1702,7 +1796,7 @@ fun Loto7LatestResultCard(
 
 
                     Text(
-                        "Lottolyzer • ${
+                        "Server • ${
                             draw?.let {
                                 "Loto7Draw ${it.drawNumber}"
                             } ?: "Updating…"
@@ -1716,7 +1810,7 @@ fun Loto7LatestResultCard(
                         color =
                             MaterialTheme
                                 .colorScheme
-                                .onPrimaryContainer
+                                .onTertiaryContainer
                                 .copy(alpha = .75f)
                     )
                 }
@@ -1770,7 +1864,8 @@ fun Loto7LatestResultCard(
 
                         Loto7NumberBubble(
                             it,
-                            prominent = true
+                            prominent = true,
+                            latestResult = true
                         )
                     }
                 }
@@ -1833,7 +1928,7 @@ fun Loto7GeneratorScreen(
     lowHighFilter: Loto7LowHighFilter,
     method: Loto7Method,
     status: String,
-    onGenerate: () -> Unit,
+    onGenerate: (Int) -> Unit,
     onClear: () -> Unit,
     favorites: List<FavoriteItem> = emptyList(),
     onToggleFavorite: (Loto7Combination) -> Unit = {},
@@ -1841,6 +1936,8 @@ fun Loto7GeneratorScreen(
     onLowHighChange: (Loto7LowHighFilter) -> Unit,
     onMethodChange: (Loto7Method) -> Unit
 ) {
+
+    var generationCount by androidx.compose.runtime.saveable.rememberSaveable { mutableIntStateOf(5) }
 
     var showGenerateConfirmation by remember {
         mutableStateOf(false)
@@ -1870,7 +1967,7 @@ fun Loto7GeneratorScreen(
                 Column {
 
                     Text(
-                        "Generate 10 new Loto 7 combinations using these settings?"
+                        "Generate $generationCount new Loto 7 combinations using these settings?"
                     )
 
                     Spacer(
@@ -1914,7 +2011,7 @@ fun Loto7GeneratorScreen(
                         showGenerateConfirmation =
                             false
 
-                        onGenerate()
+                        onGenerate(generationCount)
                     }
                 ) {
 
@@ -2021,8 +2118,12 @@ fun Loto7GeneratorScreen(
                     "Generate combinations",
 
                 subtitle =
+                    ""
+                    /*
                     "Numbers are selected only from the previous 10 draws."
+                    */
             )
+
         }
 
 
@@ -2033,6 +2134,35 @@ fun Loto7GeneratorScreen(
                 lowBoundary = 18
             )
             NextDrawPatternCard(prediction)
+        }
+
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(Modifier.padding(14.dp)) {
+                    Text(
+                        "Number of combinations",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(1, 3, 5).forEach { count ->
+                            FilterChip(
+                                selected = generationCount == count,
+                                onClick = { generationCount = count },
+                                label = { Text("$count set${if (count == 1) "" else "s"}") },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         item {
@@ -2615,7 +2745,8 @@ fun Loto7CombinationCard(
 @Composable
 fun Loto7NumberBubble(
     number: Int,
-    prominent: Boolean = false
+    prominent: Boolean = false,
+    latestResult: Boolean = false
 ) {
 
     Surface(
@@ -2631,7 +2762,9 @@ fun Loto7NumberBubble(
             RoundedCornerShape(50),
 
         color =
-            if (prominent)
+            if (latestResult)
+                MaterialTheme.colorScheme.tertiary
+            else if (prominent)
                 MaterialTheme
                     .colorScheme
                     .primary
@@ -2641,7 +2774,9 @@ fun Loto7NumberBubble(
                     .surfaceVariant,
 
         contentColor =
-            if (prominent)
+            if (latestResult)
+                MaterialTheme.colorScheme.onTertiary
+            else if (prominent)
                 MaterialTheme
                     .colorScheme
                     .onPrimary

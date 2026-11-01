@@ -1,0 +1,24 @@
+SERVER CACHE UPDATE
+
+This project now keeps previously downloaded lottery results on the device.
+
+Protected games:
+- Japan Loto 6
+- Japan Loto 7
+- Japan Mini Loto
+- Philippines Lotto 6/42
+- Philippines Mega Lotto 6/45
+- Philippines Super Lotto 6/49
+- Philippines Grand Lotto 6/55
+- Philippines Ultra Lotto 6/58
+
+Behavior:
+- Saved results load immediately when available.
+- The app then checks Server for newer results.
+- A failed/empty Server response does not erase valid saved History.
+- Visible source labels use “Server” rather than “Lottolyzer”.
+- Philippine caches are stored separately for each of the five games.
+
+Build:
+PowerShell:
+  .\gradlew.bat assembleDebug

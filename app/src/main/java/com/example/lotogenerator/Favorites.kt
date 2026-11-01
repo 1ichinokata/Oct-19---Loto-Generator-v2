@@ -242,7 +242,9 @@ fun FavoriteListScreen(
     latestDrawNumbers: Set<Int>,
     onRemove: (FavoriteItem) -> Unit,
     onAddManual: (List<Int>) -> Unit,
-    winningAmountFor: (FavoriteItem) -> Long? = { null }
+    winningAmountFor: (FavoriteItem) -> Long? = { null },
+    historyDrawNumbers: Map<Int, Set<Int>> = emptyMap(),
+    historyDrawBonuses: Map<Int, Set<Int>> = emptyMap()
 ) {
 
     var showAddDialog by remember {
@@ -377,7 +379,9 @@ fun FavoriteListScreen(
                     onRemove = {
                         onRemove(item)
                     },
-                    winningAmount = winningAmountFor(item)
+                    winningAmount = winningAmountFor(item),
+                    historyDrawNumbers = historyDrawNumbers,
+                    historyDrawBonuses = historyDrawBonuses
                 )
             }
         }
@@ -391,7 +395,9 @@ private fun FavoriteItemCard(
     latestDrawNumber: Int?,
     latestDrawNumbers: Set<Int>,
     onRemove: () -> Unit,
-    winningAmount: Long?
+    winningAmount: Long?,
+    historyDrawNumbers: Map<Int, Set<Int>>,
+    historyDrawBonuses: Map<Int, Set<Int>>
 ) {
 
     var expanded by remember {
@@ -401,21 +407,27 @@ private fun FavoriteItemCard(
     val (_, requiredNumbers) =
         getLotteryRules(lotteryName)
 
-    val isTargetDraw =
-        item.targetDrawNumber != null &&
-                latestDrawNumber == item.targetDrawNumber
+    val targetResultNumbers =
+        item.targetDrawNumber?.let { target ->
+            historyDrawNumbers[target]
+                ?: if (latestDrawNumber == target) latestDrawNumbers else null
+        }
+
+    val targetBonusNumbers =
+        item.targetDrawNumber?.let { target -> historyDrawBonuses[target].orEmpty() } ?: emptySet()
+
+    val isTargetDraw = targetResultNumbers != null
 
     val matchedNumbers =
-        if (isTargetDraw) {
-            item.numbers.filter {
-                it in latestDrawNumbers
-            }
-        } else {
-            emptyList()
-        }
+        targetResultNumbers?.let { resultNumbers ->
+            item.numbers.filter { it in resultNumbers }
+        } ?: emptyList()
 
     val matchedCount =
         matchedNumbers.size
+
+    val bonusMatchedNumbers =
+        item.numbers.filter { it in targetBonusNumbers }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -515,7 +527,8 @@ private fun FavoriteItemCard(
 
                     FavoriteNumberBubble(
                         number = number,
-                        isMatch = isMatch
+                        isMatch = isMatch,
+                        isBonus = number in bonusMatchedNumbers
                     )
                 }
 
@@ -695,7 +708,7 @@ private fun FavoriteItemCard(
                         )
                     }
 
-                    latestDrawNumber == item.targetDrawNumber -> {
+                    targetResultNumbers != null -> {
 
                         Text(
                             if (matchedCount > 0) {
@@ -732,7 +745,7 @@ private fun FavoriteItemCard(
                     else -> {
 
                         Text(
-                            "Target draw #${item.targetDrawNumber} has already passed.",
+                            "Target draw #${item.targetDrawNumber} is older than the saved History. Update Results to check it.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -745,20 +758,25 @@ private fun FavoriteItemCard(
 @Composable
 private fun FavoriteNumberBubble(
     number: Int,
-    isMatch: Boolean
+    isMatch: Boolean,
+    isBonus: Boolean = false
 ) {
 
     Surface(
         modifier = Modifier.size(40.dp),
         shape = RoundedCornerShape(50),
         color =
-            if (isMatch) {
+            if (isBonus) {
+                MaterialTheme.colorScheme.tertiary
+            } else if (isMatch) {
                 MaterialTheme.colorScheme.primary
             } else {
                 MaterialTheme.colorScheme.surfaceVariant
             },
         contentColor =
-            if (isMatch) {
+            if (isBonus) {
+                MaterialTheme.colorScheme.onTertiary
+            } else if (isMatch) {
                 MaterialTheme.colorScheme.onPrimary
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant

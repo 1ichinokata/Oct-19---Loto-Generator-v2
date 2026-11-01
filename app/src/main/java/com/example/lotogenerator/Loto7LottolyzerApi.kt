@@ -29,6 +29,12 @@ class Loto7LottolyzerApi(
         const val HISTORY_URL =
             "https://en.lottolyzer.com/history/japan/lotto-7/page/1/per-page/50/summary-view"
 
+        private const val HOME_SUMMARY_URL =
+            "https://en.lottolyzer.com/home/japan/lotto-7/summary-view"
+
+        private const val NUMBER_VIEW_URL =
+            "https://en.lottolyzer.com/history/japan/lotto-7/page/1/per-page/50/number-view"
+
         private const val RESULT_URL =
             "https://en.lottolyzer.com/result/japan/lotto-7/draw/"
 
@@ -54,62 +60,37 @@ class Loto7LottolyzerApi(
                 "limit must be greater than zero"
             }
 
-            // Retrieve Loto 7 history.
-            val historyHtml =
-                download(HISTORY_URL)
-
-            val draws =
-                parseHistory(historyHtml)
-                    .sortedByDescending {
-                        it.drawNumber
-                    }
-                    .distinctBy {
-                        it.drawNumber
-                    }
-                    .take(limit)
+            val draws = try {
+                parseHistory(download(HISTORY_URL))
+            } catch (_: Exception) {
+                try {
+                    parseHistory(download(HOME_SUMMARY_URL))
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            }
+                .sortedByDescending { it.drawNumber }
+                .distinctBy { it.drawNumber }
+                .take(limit)
 
             if (draws.isEmpty()) {
                 return@withContext emptyList()
             }
 
-            /*
-             * Retrieve prize information separately.
-             *
-             * Failure to retrieve prizes does not
-             * prevent the draw from being returned.
-             */
-            coroutineScope {
+            // FAST MODE: fetch prize details for the latest draw only.
+            // Older history rows do not trigger extra result-page requests.
+            val latestDrawNumber = draws.first().drawNumber
+            val latestPrizes = try {
+                fetchPrizesForDraw(latestDrawNumber)
+            } catch (_: Exception) {
+                emptyList()
+            }
 
-                val results =
-                    draws.map { draw ->
-
-                        async(Dispatchers.IO) {
-
-                            val prizes =
-                                try {
-
-                                    fetchPrizesForDraw(
-                                        draw.drawNumber
-                                    )
-
-                                } catch (_: Exception) {
-
-                                    emptyList()
-                                }
-
-                            draw.copy(
-                                prizes = prizes
-                            )
-                        }
-                    }
-
-                results.awaitAll()
+            draws.map { draw ->
+                draw.copy(prizes = if (draw.drawNumber == latestDrawNumber) latestPrizes else emptyList())
             }
         }
 
-    /**
-     * Fetch prize information for one draw.
-     */
     private fun fetchPrizesForDraw(
         drawNumber: Int
     ): List<Loto7Prize> {
@@ -128,63 +109,7 @@ class Loto7LottolyzerApi(
      */
     private fun download(
         urlString: String
-    ): String {
-
-        val connection =
-            (URL(urlString).openConnection()
-                    as HttpURLConnection).apply {
-
-                requestMethod = "GET"
-
-                connectTimeout =
-                    TIMEOUT_MS
-
-                readTimeout =
-                    TIMEOUT_MS
-
-                useCaches = false
-                doInput = true
-
-                setRequestProperty(
-                    "User-Agent",
-                    "Mozilla/5.0 (Android) AppleWebKit/537.36 " +
-                            "Chrome/154.0 Mobile Safari/537.36"
-                )
-
-                setRequestProperty(
-                    "Accept",
-                    "text/html,application/xhtml+xml"
-                )
-
-                setRequestProperty(
-                    "Accept-Language",
-                    "en-US,en;q=0.9"
-                )
-            }
-
-        try {
-
-            val response =
-                connection.responseCode
-
-            if (response !in 200..299) {
-
-                throw IOException(
-                    "Lottolyzer HTTP $response"
-                )
-            }
-
-            return connection.inputStream
-                .bufferedReader(Charsets.UTF_8)
-                .use {
-                    it.readText()
-                }
-
-        } finally {
-
-            connection.disconnect()
-        }
-    }
+    ): String = LottolyzerHttp.get(urlString)
 
     /**
      * Parse Loto 7 history.

@@ -32,3 +32,11 @@ keystore.properties
 # Android build files
 /build/
 /app/build/
+
+# Android Studio temporary and private files
+.gradle/
+.idea/
+**/build/
+local.properties
+*.jks
+*.keystore

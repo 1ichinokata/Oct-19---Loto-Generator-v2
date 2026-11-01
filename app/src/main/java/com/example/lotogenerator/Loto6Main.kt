@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Refresh
@@ -48,6 +49,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -66,6 +68,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 
@@ -132,7 +135,10 @@ enum class Loto6Method(
     BALANCED("Balanced"),
     FREQUENCY("Frequency"),
     HOT("Hot"),
-    COLD("Cold")
+    COLD("Cold"),
+    BALANCED_FREQUENCY("Balanced + Frequency"),
+    BALANCED_HOT("Balanced + Hot"),
+    BALANCED_COLD("Balanced + Cold")
 }
 
 
@@ -531,6 +537,79 @@ class Loto6Engine {
     }
 
 
+    fun generateBalancedFrequency(
+        pool: List<Int>,
+        frequency: Map<Int, Int>,
+        oddEven: Loto6OddEvenFilter,
+        lowHigh: Loto6LowHighFilter
+    ): List<Int> = generateBalancedWeighted(
+        pool, frequency, oddEven, lowHigh, "frequency"
+    )
+
+    fun generateBalancedHot(
+        pool: List<Int>,
+        frequency: Map<Int, Int>,
+        oddEven: Loto6OddEvenFilter,
+        lowHigh: Loto6LowHighFilter
+    ): List<Int> = generateBalancedWeighted(
+        pool, frequency, oddEven, lowHigh, "hot"
+    )
+
+    fun generateBalancedCold(
+        pool: List<Int>,
+        frequency: Map<Int, Int>,
+        oddEven: Loto6OddEvenFilter,
+        lowHigh: Loto6LowHighFilter
+    ): List<Int> = generateBalancedWeighted(
+        pool, frequency, oddEven, lowHigh, "cold"
+    )
+
+    private fun generateBalancedWeighted(
+        pool: List<Int>,
+        frequency: Map<Int, Int>,
+        oddEven: Loto6OddEvenFilter,
+        lowHigh: Loto6LowHighFilter,
+        style: String
+    ): List<Int> {
+        if (pool.size < 6) return emptyList()
+
+        val maxFrequency =
+            pool.maxOfOrNull { frequency[it] ?: 0 } ?: 0
+
+        val weightedPool = ArrayList<Int>()
+
+        for (number in pool.distinct()) {
+            val count = frequency[number] ?: 0
+            val weight = when (style) {
+                "hot" -> ((count + 1) * (count + 1)).coerceAtMost(100)
+                "cold" -> (maxFrequency - count + 1).coerceAtLeast(1)
+                else -> (count + 1).coerceAtMost(20)
+            }
+
+            repeat(weight) { weightedPool.add(number) }
+        }
+
+        repeat(5000) {
+            val numbers = weightedPool
+                .shuffled()
+                .distinct()
+                .take(6)
+                .sorted()
+
+            if (
+                numbers.size == 6 &&
+                matchesOddEven(numbers, oddEven) &&
+                matchesLowHigh(numbers, lowHigh) &&
+                hasGoodBalance(numbers)
+            ) {
+                return numbers
+            }
+        }
+
+        return generateBalanced(pool, oddEven, lowHigh)
+    }
+
+
     private fun hasGoodBalance(
         numbers: List<Int>
     ): Boolean {
@@ -636,6 +715,9 @@ class Loto6ViewModel(
         _status
 
 
+    private val _updateAvailable = MutableStateFlow(false)
+    val updateAvailable: StateFlow<Boolean> = _updateAvailable
+
     private val _isUpdating =
         MutableStateFlow(false)
 
@@ -646,6 +728,9 @@ class Loto6ViewModel(
 
     private val favoriteStore =
         FavoriteStore(application)
+
+    private val historyCache =
+        Loto6HistoryCache(application)
 
 
     private val _favorites =
@@ -659,8 +744,17 @@ class Loto6ViewModel(
 
 
     init {
+        loadSavedHistory()
+        if (_history.value.isEmpty()) updateFromLottolyzer()
+        else checkForNewResults()
+    }
 
-        updateFromLottolyzer()
+    private fun loadSavedHistory() {
+        val saved = historyCache.load().sortedByDescending { it.drawNumber }
+        if (saved.isEmpty()) return
+        _history.value = saved
+        _latestDraw.value = saved.first()
+        _status.value = "Saved results loaded"
     }
 
 
@@ -831,7 +925,7 @@ class Loto6ViewModel(
     // GENERATE
     // =========================================================
 
-    fun generate() {
+    fun generate(count: Int = 5) {
 
         val analysisDraws =
             getAnalysisDraws()
@@ -902,7 +996,7 @@ class Loto6ViewModel(
         var attempts = 0
 
         while (
-            result.size < 10 &&
+            result.size < count &&
             attempts < 10000
         ) {
 
@@ -948,6 +1042,33 @@ class Loto6ViewModel(
                     Loto6Method.COLD ->
 
                         engine.generateCold(
+                            generationPool,
+                            frequency,
+                            oddEven,
+                            lowHigh
+                        )
+
+                    Loto6Method.BALANCED_FREQUENCY ->
+
+                        engine.generateBalancedFrequency(
+                            generationPool,
+                            frequency,
+                            oddEven,
+                            lowHigh
+                        )
+
+                    Loto6Method.BALANCED_HOT ->
+
+                        engine.generateBalancedHot(
+                            generationPool,
+                            frequency,
+                            oddEven,
+                            lowHigh
+                        )
+
+                    Loto6Method.BALANCED_COLD ->
+
+                        engine.generateBalancedCold(
                             generationPool,
                             frequency,
                             oddEven,
@@ -1131,68 +1252,68 @@ class Loto6ViewModel(
     // UPDATE
     // =========================================================
 
-    fun updateFromLottolyzer() {
-
-        if (_isUpdating.value) {
-
-            return
+    fun checkForNewResults() {
+        viewModelScope.launch {
+            try {
+                val remote = Loto6LottolyzerApi(getApplication<Application>()).fetchRecentDraws(30)
+                val localLatest = _latestDraw.value?.drawNumber
+                val remoteLatest = remote.firstOrNull()?.drawNumber
+                _updateAvailable.value =
+                    localLatest != null && remoteLatest != null && remoteLatest > localLatest
+            } catch (_: Exception) {
+                _updateAvailable.value = false
+            }
         }
+    }
+
+    fun dismissUpdatePrompt() {
+        _updateAvailable.value = false
+    }
+
+    fun updateFromLottolyzer() {
+        _updateAvailable.value = false
+        if (_isUpdating.value) return
 
         viewModelScope.launch {
-
-            _isUpdating.value =
-                true
-
-            _status.value =
-                "Connecting to Lottolyzer......"
+            _isUpdating.value = true
+            _status.value = "Updating from Server..."
 
             try {
-
-                val api =
-                    Loto6LottolyzerApi(
-                        getApplication<Application>()
-                    )
-
-                val draws =
-                    api.fetchRecentDraws(30)
+                val api = Loto6LottolyzerApi(getApplication<Application>())
+                val draws = api.fetchRecentDraws(30)
 
                 if (draws.isEmpty()) {
-
-                    _status.value =
-                        "Lottolyzer page loaded, but no Loto 6 results could be read."
-
+                    _status.value = if (_history.value.isNotEmpty()) {
+                        "No results received from Server — showing saved results"
+                    } else {
+                        "No results received from Server"
+                    }
                     return@launch
                 }
 
-                val sorted =
-                    draws.sortedByDescending {
-                        it.drawNumber
+                val sorted = draws.sortedByDescending { it.drawNumber }.distinctBy { it.drawNumber }
+                if (sorted.isEmpty()) {
+                    _status.value = if (_history.value.isNotEmpty()) {
+                        "No results received from Server — showing saved results"
+                    } else {
+                        "No results received from Server"
                     }
+                    return@launch
+                }
 
-                val latest =
-                    sorted[0]
-
-                _history.value =
-                    sorted
-
-                _latestDraw.value =
-                    latest
-
-                _status.value =
-                    "Ready - tap Generate 10 Combinations"
-
-            } catch (error: Exception) {
-
-                _status.value =
-                    "Lottolyzer update failed: ${
-                        error.message
-                            ?: "network or parsing error"
-                    }"
-
+                val latest = sorted.first()
+                _history.value = sorted
+                _latestDraw.value = latest
+                historyCache.save(sorted)
+                _status.value = "Updated from Server: 第${latest.drawNumber}回"
+            } catch (_: Exception) {
+                _status.value = if (_history.value.isNotEmpty()) {
+                    "Server temporarily unavailable — showing saved results"
+                } else {
+                    "Server update failed"
+                }
             } finally {
-
-                _isUpdating.value =
-                    false
+                _isUpdating.value = false
             }
         }
     }
@@ -1204,7 +1325,7 @@ class Loto6ViewModel(
 // =============================================================
 
 @Composable
-fun Loto6App() {
+fun Loto6App(onHome: () -> Unit = {}) {
 
     val vm: Loto6ViewModel =
         viewModel()
@@ -1265,6 +1386,25 @@ fun Loto6App() {
 
     val isUpdating by
     vm.isUpdating.collectAsState()
+    val updateAvailable by vm.updateAvailable.collectAsState()
+
+    if (updateAvailable) {
+        AlertDialog(
+            onDismissRequest = vm::dismissUpdatePrompt,
+            title = { Text("New Results Available") },
+            text = { Text("The saved results are behind the latest Server results.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.dismissUpdatePrompt()
+                    vm.updateFromLottolyzer()
+                }) { Text("Update Results") }
+            },
+            dismissButton = {
+                TextButton(onClick = vm::dismissUpdatePrompt) { Text("Later") }
+            }
+        )
+    }
+
 
     val favorites by
     vm.favorites.collectAsState()
@@ -1346,6 +1486,7 @@ fun Loto6App() {
         ) {
 
             Loto6Scaffold(
+                onHome = onHome,
 
                 darkMode =
                     darkMode,
@@ -1385,8 +1526,8 @@ fun Loto6App() {
                     vm.updateFromLottolyzer()
                 },
 
-                onGenerate = {
-                    vm.generate()
+                onGenerate = { count ->
+                    vm.generate(count)
                 },
 
                 onClear = {
@@ -1424,6 +1565,7 @@ fun Loto6App() {
 
 @Composable
 fun Loto6Scaffold(
+    onHome: () -> Unit = {},
     darkMode: Boolean,
     onDarkModeChange: (Boolean) -> Unit,
     latestDraw: Loto6Draw?,
@@ -1436,7 +1578,7 @@ fun Loto6Scaffold(
     isUpdating: Boolean,
     favorites: List<FavoriteItem>,
     onUpdate: () -> Unit,
-    onGenerate: () -> Unit,
+    onGenerate: (Int) -> Unit,
     onClear: () -> Unit,
     onOddEvenChange:
         (Loto6OddEvenFilter) -> Unit,
@@ -1450,13 +1592,15 @@ fun Loto6Scaffold(
         (List<Int>) -> Unit
 ) {
 
-    var selectedTab by remember {
-
-        mutableStateOf(0)
+    val tabPrefs = LocalContext.current.getSharedPreferences("navigation_state", Context.MODE_PRIVATE)
+    var selectedTab by androidx.compose.runtime.saveable.rememberSaveable {
+        mutableStateOf(tabPrefs.getInt("loto6_tab", 1))
     }
+    LaunchedEffect(selectedTab) { tabPrefs.edit().putInt("loto6_tab", selectedTab).apply() }
 
     val tabs =
         listOf(
+            "Home",
             "Generator",
             "History",
             "Frequency",
@@ -1465,6 +1609,7 @@ fun Loto6Scaffold(
 
     val icons =
         listOf(
+            Icons.Default.Home,
             Icons.Default.Casino,
             Icons.Default.History,
             Icons.Default.BarChart,
@@ -1516,7 +1661,9 @@ fun Loto6Scaffold(
 
         bottomBar = {
 
-            NavigationBar {
+            Column {
+                AccessExpiryWarning()
+                NavigationBar {
 
                 tabs.forEachIndexed {
                         index,
@@ -1529,9 +1676,7 @@ fun Loto6Scaffold(
                                     index,
 
                         onClick = {
-
-                            selectedTab =
-                                index
+                            if (index == 0) onHome() else selectedTab = index
                         },
 
                         icon = {
@@ -1549,6 +1694,7 @@ fun Loto6Scaffold(
                         }
                     )
                 }
+            }
             }
         }
 
@@ -1577,7 +1723,7 @@ fun Loto6Scaffold(
 
             when (selectedTab) {
 
-                0 ->
+                1 ->
 
                     Loto6GeneratorScreen(
                     history = history,
@@ -1620,7 +1766,7 @@ fun Loto6Scaffold(
                     )
 
 
-                1 ->
+                2 ->
 
                     Loto6HistoryScreen(
                         history =
@@ -1628,7 +1774,7 @@ fun Loto6Scaffold(
                     )
 
 
-                2 ->
+                3 ->
 
                     Loto6FrequencyScreen(
                         history =
@@ -1636,7 +1782,7 @@ fun Loto6Scaffold(
                     )
 
 
-                3 ->
+                4 ->
 
                     FavoriteListScreen(
 
@@ -1656,6 +1802,8 @@ fun Loto6Scaffold(
                             latestDraw
                                 ?.drawNumber
                                 ?: 0,
+                        historyDrawNumbers = history.associate { it.drawNumber to it.numbers.toSet() },
+                        historyDrawBonuses = history.associate { it.drawNumber to setOfNotNull(it.bonus) },
 
                         onRemove = { item ->
 
@@ -1734,7 +1882,7 @@ fun Loto6LatestResultCard(
                     containerColor =
                         MaterialTheme
                             .colorScheme
-                            .primaryContainer
+                            .tertiaryContainer
                 )
     ) {
 
@@ -1785,7 +1933,7 @@ fun Loto6LatestResultCard(
 
                     Text(
 
-                        "Lottolyzer • ${
+                        "Server • ${
                             draw?.let {
                                 "Loto 6 Draw ${it.drawNumber}"
                             }
@@ -1800,7 +1948,7 @@ fun Loto6LatestResultCard(
                         color =
                             MaterialTheme
                                 .colorScheme
-                                .onPrimaryContainer
+                                .onTertiaryContainer
                                 .copy(alpha = .75f)
                     )
                 }
@@ -1858,7 +2006,8 @@ fun Loto6LatestResultCard(
 
                         Loto6NumberBubble(
                             it,
-                            prominent = true
+                            prominent = true,
+                            latestResult = true
                         )
                     }
                 }
@@ -1926,7 +2075,7 @@ fun Loto6GeneratorScreen(
     lowHighFilter: Loto6LowHighFilter,
     method: Loto6Method,
     status: String,
-    onGenerate: () -> Unit,
+    onGenerate: (Int) -> Unit,
     onClear: () -> Unit,
     favorites: List<FavoriteItem> =
         emptyList(),
@@ -1939,6 +2088,8 @@ fun Loto6GeneratorScreen(
     onMethodChange:
         (Loto6Method) -> Unit
 ) {
+
+    var generationCount by androidx.compose.runtime.saveable.rememberSaveable { mutableIntStateOf(5) }
 
     var showGenerateConfirmation by
     remember {
@@ -1975,7 +2126,7 @@ fun Loto6GeneratorScreen(
                 Column {
 
                     Text(
-                        "Generate 10 new Loto 6 combinations using these settings?"
+                        "Generate $generationCount new Loto 6 combinations using these settings?"
                     )
 
                     Spacer(
@@ -2019,7 +2170,7 @@ fun Loto6GeneratorScreen(
                         showGenerateConfirmation =
                             false
 
-                        onGenerate()
+                        onGenerate(generationCount)
                     }
                 ) {
 
@@ -2138,7 +2289,10 @@ fun Loto6GeneratorScreen(
                     "Generate combinations",
 
                 subtitle =
+                    ""
+                    /*
                     "Numbers are selected only from the previous 10 draws."
+                    */
             )
         }
 
@@ -2150,6 +2304,35 @@ fun Loto6GeneratorScreen(
                 lowBoundary = 21
             )
             NextDrawPatternCard(prediction)
+        }
+
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(Modifier.padding(14.dp)) {
+                    Text(
+                        "Number of combinations",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(1, 3, 5).forEach { count ->
+                            FilterChip(
+                                selected = generationCount == count,
+                                onClick = { generationCount = count },
+                                label = { Text("$count set${if (count == 1) "" else "s"}") },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         item {
@@ -2851,7 +3034,8 @@ fun Loto6NumberBubble(
 
     number: Int,
 
-    prominent: Boolean = false
+    prominent: Boolean = false,
+    latestResult: Boolean = false
 ) {
 
     Surface(
@@ -2869,7 +3053,9 @@ fun Loto6NumberBubble(
             RoundedCornerShape(50),
 
         color =
-            if (prominent) {
+            if (latestResult) {
+                MaterialTheme.colorScheme.tertiary
+            } else if (prominent) {
 
                 MaterialTheme
                     .colorScheme
@@ -2883,7 +3069,9 @@ fun Loto6NumberBubble(
             },
 
         contentColor =
-            if (prominent) {
+            if (latestResult) {
+                MaterialTheme.colorScheme.onTertiary
+            } else if (prominent) {
 
                 MaterialTheme
                     .colorScheme
@@ -2967,7 +3155,7 @@ fun Loto6HistoryScreen(
                 )
 
                 Text(
-                    "Previous draws • Lottolyzer",
+                    "Previous draws • Server",
                     style =
                         MaterialTheme
                             .typography
