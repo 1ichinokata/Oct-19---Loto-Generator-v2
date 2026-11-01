@@ -386,7 +386,13 @@ fun PhilippineLottoApp(
             }
         )
     }
-    var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableIntStateOf(1) }
+    val tabPrefs = LocalContext.current.getSharedPreferences("navigation_state", Context.MODE_PRIVATE)
+    var tab by androidx.compose.runtime.saveable.rememberSaveable {
+        mutableIntStateOf(tabPrefs.getInt("philippine_tab", 1))
+    }
+    LaunchedEffect(tab) {
+        tabPrefs.edit().putInt("philippine_tab", tab).apply()
+    }
     val tabs = listOf("Home", "Generator", "History", "Frequency", "Favorites")
     val icons = listOf(
         Icons.Default.Home,
@@ -423,6 +429,9 @@ fun PhilippineLottoApp(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                    .lotoTabSwipe(tab) { nextTab ->
+                        if (nextTab == 0) onHome() else tab = nextTab
+                    }
         ) {
             Spacer(Modifier.height(64.dp))
             PhilippineLatestResultCard(
