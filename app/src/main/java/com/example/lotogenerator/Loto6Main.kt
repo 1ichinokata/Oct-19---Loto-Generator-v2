@@ -1706,6 +1706,9 @@ fun Loto6Scaffold(
                 Modifier
                     .fillMaxSize()
                     .padding(padding)
+                    .lotoTabSwipe(selectedTab) { nextTab ->
+                        if (nextTab == 0) onHome() else selectedTab = nextTab
+                    }
         ) {
 
             Loto6LatestResultCard(
