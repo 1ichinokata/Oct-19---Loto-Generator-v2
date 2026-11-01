@@ -40,3 +40,10 @@ keystore.properties
 local.properties
 *.jks
 *.keystore
+.gradle/
+.idea/
+.kotlin/
+**/build/
+local.properties
+*.jks
+*.keystore
