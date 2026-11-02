@@ -24,18 +24,20 @@ fun Modifier.lotoTabSwipe(
         onDragEnd = {
             if (dragTotal <= -threshold) {
                 val next = when (selectedTab) {
-                    2 -> 3 // History -> Frequency
-                    3 -> 4 // Frequency -> Favorites
-                    4 -> 2 // Favorites -> History
-                    else -> selectedTab
+                    1 -> 0 // Generator -> Home
+                    2 -> 1 // History -> Generator
+                    3 -> 2 // Frequency -> History
+                    4 -> 3 // Favorites -> Frequency
+                    else -> selectedTab // Home -> No action
                 }
                 if (next != selectedTab) onTabSelected(next)
             } else if (dragTotal >= threshold) {
                 val next = when (selectedTab) {
-                    1 -> 0 // Generator -> Home
-                    2 -> 4 // History -> Favorites
-                    3 -> 2 // Frequency -> History
-                    else -> selectedTab
+                    0 -> 1 // Home -> Generator
+                    1 -> 2 // Generator -> History
+                    2 -> 3 // History -> Frequency
+                    3 -> 4 // Frequency -> Favorites
+                    else -> selectedTab // Favorites -> No action
                 }
                 if (next != selectedTab) onTabSelected(next)
             }
