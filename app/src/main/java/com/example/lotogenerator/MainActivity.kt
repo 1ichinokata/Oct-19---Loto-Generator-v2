@@ -795,6 +795,15 @@ private fun CombinedLotoApp(
                     .colorScheme
                     .background
             )
+            .then(
+                if (showSettings) {
+                    Modifier.lotoSettingsSwipe {
+                        showSettings = false
+                    }
+                } else {
+                    Modifier
+                }
+            )
     ) {
 
         when {
