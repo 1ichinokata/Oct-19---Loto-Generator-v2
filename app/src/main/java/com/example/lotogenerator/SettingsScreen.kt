@@ -496,8 +496,6 @@ fun SettingsScreen(
     // -----------------------------------------
 
     Scaffold(
-        modifier = Modifier.lotoSettingsSwipe(onBack),
-
         topBar = {
 
             Surface(
